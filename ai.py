@@ -37,19 +37,18 @@ class VisionThread(threading.Thread):
 
     def run(self):
         previousEyes = None
+        try:
+            win32gui.SetForegroundWindow(self.process)
+        except:
+            pass
+        finally:
+            pass
+
+        bbox = win32gui.GetWindowRect(self.process)
         while True:
             if self.type == 'Stereo':
                 if self.active.is_set():
                     break
-
-                try:
-                    win32gui.SetForegroundWindow(self.process)
-                except:
-                    pass
-                finally:
-                    pass
-
-                bbox = win32gui.GetWindowRect(self.process)
 
                 leftEye = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
                 # 1 Second Divided by the Expected Frames Per Second
@@ -72,17 +71,11 @@ class VisionThread(threading.Thread):
                 if self.active.is_set():
                     break
 
-                try:
-                    win32gui.SetForegroundWindow(self.process)
-                except:
-                    pass
-                finally:
-                    pass
-
-                bbox = win32gui.GetWindowRect(self.process)
-
                 eyes = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
+                # Blur the image
+                eyes = cv.GaussianBlur(eyes, (3,3), 0)
 
+                # Motion Detection Section
                 if previousEyes is None:
                     # First frame; there is no previous one yet
                     previousEyes = eyes
@@ -92,23 +85,29 @@ class VisionThread(threading.Thread):
                 diffEyes = cv.absdiff(src1=previousEyes, src2=eyes)
                 previousEyes = eyes
 
-                # 4. Dilute the image a bit to make differences more seeable; more suitable for contour detection
+                # Dilute the image a bit to make differences more seeable; more suitable for contour detection
                 kernel = np.ones((5, 5))
                 diffEyes = cv.dilate(diffEyes, kernel, 1)
 
-                # 5. Only take different areas that are different enough (>20 / 255)
+                # Only take different areas that are different enough (>20 / 255)
                 threshEyes = cv.threshold(src=diffEyes, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
+                # End Motion Detection
 
                 # 1 Second Divided by the Expected Frames Per Second
                 time.sleep(1 / self.fps)
 
-                # Blur the image
-                img_blur = cv.GaussianBlur(eyes, (3,3), 0)
+
 
                 # Sobel Edge Detection
-                edgesx = cv.Sobel(img_blur, -1, dx=1, dy=0, ksize=1)
-                edgesy = cv.Sobel(img_blur, -1, dx=0, dy=1, ksize=1)
-                edges = edgesx + edgesy + threshEyes
+                edgesx = cv.Sobel(eyes, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(eyes, -1, dx=0, dy=1, ksize=1)
+
+                # Draw Countours from Motion Detection to Edges Image
+                contours, _ = cv.findContours(image=threshEyes, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
+                drawnCountours = cv.drawContours(image=threshEyes, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
+
+                # Finalize Image
+                edges = edgesx + edgesy + drawnCountours
 
                 # Display
                 self.axe.clear()
