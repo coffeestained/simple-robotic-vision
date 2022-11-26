@@ -27,7 +27,7 @@ class VisionThread(threading.Thread):
 
     def __init__(self, fps, process, event, figure, axe):
        threading.Thread.__init__(self)
-       self.type = 'Canny Edge'
+       self.type = 'Sobel Edge'
        self.figure = figure
        self.axe = axe
        self.fps = fps
@@ -36,6 +36,7 @@ class VisionThread(threading.Thread):
        self.start()
 
     def run(self):
+        previousEyes = None
         while True:
             if self.type == 'Stereo':
                 if self.active.is_set():
@@ -67,7 +68,7 @@ class VisionThread(threading.Thread):
                 self.axe.imshow(disparity)
                 self.figure.draw_idle()
 
-            if self.type == 'Canny Edge':
+            if self.type == 'Sobel Edge':
                 if self.active.is_set():
                     break
 
@@ -81,18 +82,37 @@ class VisionThread(threading.Thread):
                 bbox = win32gui.GetWindowRect(self.process)
 
                 eyes = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
+
+                if previousEyes is None:
+                    # First frame; there is no previous one yet
+                    previousEyes = eyes
+                    continue
+
+                # calculate difference and update previous frame
+                diffEyes = cv.absdiff(src1=previousEyes, src2=eyes)
+                previousEyes = eyes
+
+                # 4. Dilute the image a bit to make differences more seeable; more suitable for contour detection
+                kernel = np.ones((5, 5))
+                diffEyes = cv.dilate(diffEyes, kernel, 1)
+
+                # 5. Only take different areas that are different enough (>20 / 255)
+                threshEyes = cv.threshold(src=diffEyes, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
+
                 # 1 Second Divided by the Expected Frames Per Second
                 time.sleep(1 / self.fps)
 
                 # Blur the image
                 img_blur = cv.GaussianBlur(eyes, (3,3), 0)
 
-                # Canny Edge Detection
-                edges = cv.Canny(image=img_blur, threshold1=100, threshold2=200)
+                # Sobel Edge Detection
+                edgesx = cv.Sobel(img_blur, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(img_blur, -1, dx=0, dy=1, ksize=1)
+                edges = edgesx + edgesy + threshEyes
 
                 # Display
                 self.axe.clear()
-                img = self.axe.imshow(edges, alpha=0.6)
+                img = self.axe.imshow(edges, alpha=1)
                 self.figure.draw_idle()
 
 class Overlay(QtWidgets.QWidget):
@@ -186,7 +206,7 @@ class Overlay(QtWidgets.QWidget):
         previewLabel.setFont(QtGui.QFont('Arial', 15))
         previewLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
 
-        self.preview = QTCanvas(self, width=5, height=4, dpi=100)
+        self.preview = QTCanvas(self, width=10, height=8, dpi=100)
 
         previewLayout.addWidget(previewLabel, alignment = (QtCore.Qt.AlignTop))
         previewLayout.addWidget(self.preview, alignment = (QtCore.Qt.AlignTop))
@@ -200,7 +220,7 @@ class Overlay(QtWidgets.QWidget):
         self.active.set()
         time.sleep(3)
         self.active.clear()
-        axe = self.preview.axes.add_subplot(111, facecolor="none")
+        axe = self.preview.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
         VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, axe=axe)
         time.sleep(10)
         pyplot.show()
@@ -214,9 +234,9 @@ class Overlay(QtWidgets.QWidget):
 
 class QTCanvas(FigureCanvasQTAgg):
 
-    def __init__(self, parent=None, width=40, height=32, dpi=100):
+    def __init__(self, parent=None, width=6, height=4, dpi=100):
         figure = pyplot.Figure(figsize=(width, height), dpi=dpi)
-        figure.patch.set_alpha(0.33)
+        figure.patch.set_alpha(0.0)
         self.axes = figure
         super(QTCanvas, self).__init__(figure)
         self.setStyleSheet("background-color:transparent;")
