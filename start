@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import time
+import signal
 
 def file_filter(name):
     return (not name.startswith(".")) and (not name.endswith(".swp")) and (not name.endswith(".tmp"))
@@ -32,13 +33,24 @@ process = subprocess.Popen(command, shell=True)
 # The current maximum file modified time under the watched directory
 last_mtime = max(file_times(path))
 
+def handler(signum, frame):
+    res = input("Ctrl-c was pressed. Do you really want to exit? y/n ")
+    if res == 'y':
+        subprocess.call(['taskkill', '/F', '/T', '/PID',  str(process.pid)])
+        process.kill()
+        exit(1)
+
+signal.signal(signal.SIGINT, handler)
+
 while True:
     max_mtime = max(file_times(path))
     print_stdout(process)
     if max_mtime > last_mtime:
         last_mtime = max_mtime
-        print("Restarting process.")
         subprocess.call(['taskkill', '/F', '/T', '/PID',  str(process.pid)])
         process.kill()
         process = subprocess.Popen(command, shell=True)
     time.sleep(wait)
+
+
+

@@ -2,32 +2,63 @@
 from PyQt5 import QtCore, QtWidgets, QtGui
 
 ## Other Required Imports
+import os
 import time
 import threading
+#import math
 
 ## Image Processing Imports
-import win32gui
 import cv2 as cv
+from dotenv import load_dotenv
 from matplotlib import pyplot
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-import pytesseract
-from PIL import Image, ImageGrab, ImageEnhance, ImageFilter
+#import pytesseract
+from PIL import ImageGrab, Image
 
 import numpy as np
 
 ## Windows Imports
 import wmi
+import win32gui
+import win32ui
+import win32con
+import ctypes
 
-## Image Processing Stereo
-stereo = cv.StereoBM_create(numDisparities = 128,
-                            blockSize = 5)
+# ENV
+load_dotenv()
+
+WINDOW = os.getenv('WINDOW')
+
+# Def Function Works, but only once for some reason
+def background_screenshot(hwnd, width, height):
+    hwndDC = win32gui.GetWindowDC(hwnd)
+    mfcDC  = win32ui.CreateDCFromHandle(hwndDC)
+    saveDC = mfcDC.CreateCompatibleDC()
+
+    saveBitMap = win32ui.CreateBitmap()
+    saveBitMap.CreateCompatibleBitmap(mfcDC, width, height)
+    saveDC.SelectObject(saveBitMap)
+    result = ctypes.windll.user32.PrintWindow(hwnd, saveDC.GetSafeHdc(), 2)
+    bmpinfo = saveBitMap.GetInfo()
+    bmpstr = saveBitMap.GetBitmapBits(True)
+    im = Image.frombuffer(
+        'RGB',
+        (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+        bmpstr, 'raw', 'BGRX', 0, 1)
+
+    win32gui.DeleteObject(saveBitMap.GetHandle())
+    saveDC.DeleteDC()
+    mfcDC.DeleteDC()
+    win32gui.ReleaseDC(hwnd, hwndDC)
+
+    return im
 
 # A class that extends the Thread class
 class VisionThread(threading.Thread):
 
     def __init__(self, fps, process, event, figure, axe):
        threading.Thread.__init__(self)
-       self.type = 'Sobel Edge'
+       self.type = 'Sobel Edge with Motion & Camera Movement detection'
        self.figure = figure
        self.axe = axe
        self.fps = fps
@@ -36,19 +67,37 @@ class VisionThread(threading.Thread):
        self.start()
 
     def run(self):
-        previousEyes = None
-        try:
-            win32gui.SetForegroundWindow(self.process)
-        except:
-            pass
-        finally:
-            pass
+        previousBlurredImage = None
 
         bbox = win32gui.GetWindowRect(self.process)
+
+        # Requirements
+        stereo = None
+        if self.type == 'Stereo':
+            ## Image Processing Stereo
+            stereo = cv.StereoBM_create(numDisparities = 128,
+                                        blockSize = 5)
+        if self.type == 'Sobel Edge with Motion & Camera Movement detection':
+            blink = background_screenshot(self.process, 1920, 1080)
+            image = cv.cvtColor(np.asarray(blink), cv.COLOR_RGBA2GRAY)
+            # Blur the image
+            previousBlurredImage = cv.GaussianBlur(image, (3,3), 0)
+        # # DEBUG WHILE
+        # while True:
+        #     time.sleep(100 / self.fps)
+        #     image = ImageGrab.grab(bbox)
+        #     print(image)
+        #     newImage = background_screenshot(self.process, 1920, 1080)
+        #     print(newImage)
+
         while True:
-            if self.type == 'Stereo':
-                if self.active.is_set():
+            # Stop Thread Flag Check
+            if self.active.is_set():
                     break
+
+            # Loop continues its thing
+            # Based on type of class
+            if self.type == 'Stereo':
 
                 leftEye = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
                 # 1 Second Divided by the Expected Frames Per Second
@@ -67,52 +116,92 @@ class VisionThread(threading.Thread):
                 self.axe.imshow(disparity)
                 self.figure.draw_idle()
 
-            if self.type == 'Sobel Edge':
-                if self.active.is_set():
-                    break
+            if self.type == 'Sobel Edge with Motion Detection':
 
-                eyes = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
+                image = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
                 # Blur the image
-                eyes = cv.GaussianBlur(eyes, (3,3), 0)
+                blurredImage = cv.GaussianBlur(image, (3,3), 0)
 
                 # Motion Detection Section
-                if previousEyes is None:
+                if previousBlurredImage is None:
                     # First frame; there is no previous one yet
-                    previousEyes = eyes
+                    previousBlurredImage = blurredImage
                     continue
 
                 # calculate difference and update previous frame
-                diffEyes = cv.absdiff(src1=previousEyes, src2=eyes)
-                previousEyes = eyes
+                diffImages = cv.absdiff(src1=previousBlurredImage, src2=blurredImage)
+                previousBlurredImage = blurredImage
 
                 # Dilute the image a bit to make differences more seeable; more suitable for contour detection
                 kernel = np.ones((5, 5))
-                diffEyes = cv.dilate(diffEyes, kernel, 1)
+                diffImages = cv.dilate(diffImages, kernel, 1)
 
                 # Only take different areas that are different enough (>20 / 255)
-                threshEyes = cv.threshold(src=diffEyes, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
+                threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
                 # End Motion Detection
 
                 # 1 Second Divided by the Expected Frames Per Second
                 time.sleep(1 / self.fps)
 
-
-
                 # Sobel Edge Detection
-                edgesx = cv.Sobel(eyes, -1, dx=1, dy=0, ksize=1)
-                edgesy = cv.Sobel(eyes, -1, dx=0, dy=1, ksize=1)
+                edgesx = cv.Sobel(blurredImage, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(blurredImage, -1, dx=0, dy=1, ksize=1)
 
                 # Draw Countours from Motion Detection to Edges Image
-                contours, _ = cv.findContours(image=threshEyes, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
-                drawnCountours = cv.drawContours(image=threshEyes, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
+                contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
+                drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
                 # Finalize Image
                 edges = edgesx + edgesy + drawnCountours
 
                 # Display
                 self.axe.clear()
-                img = self.axe.imshow(edges, alpha=1)
+                self.axe.imshow(edges, alpha=.8)
                 self.figure.draw_idle()
+
+            if self.type == 'Sobel Edge with Motion & Camera Movement detection':
+                blink = background_screenshot(self.process, 1920, 1080)
+                image = cv.cvtColor(np.asarray(blink), cv.COLOR_RGBA2GRAY)
+                # Blur the image
+                blurredImage = cv.GaussianBlur(image, (3,3), 0)
+
+                # Motion Detection Section
+                if previousBlurredImage is None:
+                    # First frame; there is no previous one yet
+                    previousBlurredImage = blurredImage
+                    continue
+
+                # calculate difference and update previous frame
+                diffImages = cv.absdiff(src1=previousBlurredImage, src2=blurredImage)
+                previousBlurredImage = blurredImage
+
+                # Dilute the image a bit to make differences more seeable; more suitable for contour detection
+                kernel = np.ones((5, 5))
+                diffImages = cv.dilate(diffImages, kernel, 1)
+
+                # Only take different areas that are different enough (>20 / 255)
+                threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
+                # End Motion Detection
+
+                # 1 Second Divided by the Expected Frames Per Second
+                time.sleep(1 / self.fps)
+
+                # Sobel Edge Detection
+                edgesx = cv.Sobel(blurredImage, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(blurredImage, -1, dx=0, dy=1, ksize=1)
+
+                # Draw Countours from Motion Detection to Edges Image
+                contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
+                drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
+
+                # Finalize Image
+                edges = edgesx + edgesy + drawnCountours
+
+                # Display
+                self.axe.clear()
+                self.axe.imshow(edges, alpha=.8)
+                self.figure.draw_idle()
+
 
 class Overlay(QtWidgets.QWidget):
 
@@ -221,7 +310,6 @@ class Overlay(QtWidgets.QWidget):
         self.active.clear()
         axe = self.preview.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
         VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, axe=axe)
-        time.sleep(10)
         pyplot.show()
 
 
@@ -230,6 +318,7 @@ class Overlay(QtWidgets.QWidget):
             self.active.set()
             self.close()
             quit()
+
 
 class QTCanvas(FigureCanvasQTAgg):
 
