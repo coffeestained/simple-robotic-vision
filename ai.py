@@ -5,31 +5,35 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 import os
 import time
 import threading
+from queue import Queue
 #import math
 
 ## Image Processing Imports
 import cv2 as cv
-from dotenv import load_dotenv
+import pytesseract # Py OCRs
 from matplotlib import pyplot
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-#import pytesseract
-from PIL import ImageGrab, Image
-
-import numpy as np
+from PIL import Image
+import numpy as np # Scientific Computing
 
 ## Windows Imports
 import wmi
 import win32gui
 import win32ui
-import win32con
 import ctypes
 
 # ENV
+from dotenv import load_dotenv
 load_dotenv()
 
-WINDOW = os.getenv('WINDOW')
+pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')
 
-# Def Function Works, but only once for some reason
+# Global And Configurable Variables/Queues
+AVAILABLE_FEATURES = os.getenv('AVAILABLE_FEATURES').split(',')
+ENABLED_FEATURES = Queue()
+ENABLED_FEATURES.join()
+
+# Background process screenshot w11
 def background_screenshot(hwnd, width, height):
     hwndDC = win32gui.GetWindowDC(hwnd)
     mfcDC  = win32ui.CreateDCFromHandle(hwndDC)
@@ -53,153 +57,255 @@ def background_screenshot(hwnd, width, height):
 
     return im
 
+
 # A class that extends the Thread class
 class VisionThread(threading.Thread):
 
-    def __init__(self, fps, process, event, figure, axe):
+    def __init__(self, fps, process, event, figure, axe, queue):
        threading.Thread.__init__(self)
-       self.type = 'Sobel Edge with Motion & Camera Movement detection'
        self.figure = figure
        self.axe = axe
        self.fps = fps
        self.process = process
        self.active = event
+       self.queue = queue
        self.start()
 
     def run(self):
+        # Running Variables
+
+        # Maintains the previous image in the vision thread
+        # Which is then used to detect differences in a frame
+        # In a number of ways
         previousBlurredImage = None
 
-        bbox = win32gui.GetWindowRect(self.process)
+        # Features/Layers Enabled
+        enabledFeatures = []
+
+        # The Image To Be Drawn
+        finalImage = np.empty( (1080,1920) )
 
         # Requirements
         stereo = None
-        if self.type == 'Stereo':
-            ## Image Processing Stereo
-            stereo = cv.StereoBM_create(numDisparities = 128,
-                                        blockSize = 5)
-        if self.type == 'Sobel Edge with Motion & Camera Movement detection':
-            blink = background_screenshot(self.process, 1920, 1080)
-            image = cv.cvtColor(np.asarray(blink), cv.COLOR_RGBA2GRAY)
-            # Blur the image
-            previousBlurredImage = cv.GaussianBlur(image, (3,3), 0)
-        # # DEBUG WHILE
-        # while True:
-        #     time.sleep(100 / self.fps)
-        #     image = ImageGrab.grab(bbox)
-        #     print(image)
-        #     newImage = background_screenshot(self.process, 1920, 1080)
-        #     print(newImage)
+
+        # HOG Descriptors
+        hog = cv.HOGDescriptor()
+        hog.setSVMDetector(cv.HOGDescriptor_getDefaultPeopleDetector())
+
+        # Babies first steps
+        previousFrame = background_screenshot(self.process, 1920, 1080)
+        previousFrameGray = cv.cvtColor(np.asarray(previousFrame), cv.COLOR_RGBA2GRAY)
+        previousFrameBlurred = cv.GaussianBlur(previousFrameGray, (3,3), 0)
+        previousFrameHSV = cv.cvtColor(np.asarray(previousFrame), cv.COLOR_BGR2HSV)
+
+        currentFrame = background_screenshot(self.process, 1920, 1080)
+        currentFrameGray = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_RGBA2GRAY)
+        currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
+        currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
 
         while True:
+
+            # Final Image Delcration
+            finalImage = None
+
+            if self.queue.empty() == False:
+                enabledFeatures = self.queue.get(block=False)
+                self.queue.task_done()
+
             # Stop Thread Flag Check
             if self.active.is_set():
                     break
 
+            # If Active
+            if enabledFeatures:
+
+                # Set Image
+                finalImage = np.empty( (1080,1920) )
+
+                # Rotate Frames for diff checks
+                previousFrame = currentFrame
+                previousFrameGray = currentFrameGray
+                previousFrameHSV = currentFrameHSV
+                previousFrameBlurred = currentFrameBlurred
+
+                time.sleep(1 / self.fps)
+
+                currentFrame = background_screenshot(self.process, 1920, 1080)
+                currentFrameGray = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_RGBA2GRAY)
+                currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
+                currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
+
+                frameDiff = diffImages = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
+
             # Loop continues its thing
             # Based on type of class
-            if self.type == 'Stereo':
+            if 'Stereo' in enabledFeatures:
 
-                leftEye = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
-
-                rightEye = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
-
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
+                ## Image Processing Stereo
+                stereo = cv.StereoBM_create(numDisparities = 128,
+                                            blockSize = 5)
 
                 # Calculate Disparity
-                disparity = stereo.compute(leftEye, rightEye)
+                finalImage = finalImage + stereo.compute(previousFrameGray, previousFrameGray)
 
-                # DEBUG
-                self.axe.clear()
-                self.axe.imshow(disparity)
-                self.figure.draw_idle()
-
-            if self.type == 'Sobel Edge with Motion Detection':
-
-                image = cv.cvtColor(np.asarray(ImageGrab.grab(bbox)), cv.COLOR_RGB2GRAY)
-                # Blur the image
-                blurredImage = cv.GaussianBlur(image, (3,3), 0)
-
-                # Motion Detection Section
-                if previousBlurredImage is None:
-                    # First frame; there is no previous one yet
-                    previousBlurredImage = blurredImage
-                    continue
-
-                # calculate difference and update previous frame
-                diffImages = cv.absdiff(src1=previousBlurredImage, src2=blurredImage)
-                previousBlurredImage = blurredImage
+            if 'Motion Detection' in enabledFeatures:
+                # Motion Detection Section ##################################
 
                 # Dilute the image a bit to make differences more seeable; more suitable for contour detection
                 kernel = np.ones((5, 5))
-                diffImages = cv.dilate(diffImages, kernel, 1)
+                diffImages = cv.dilate(frameDiff, kernel, 1)
 
                 # Only take different areas that are different enough (>20 / 255)
                 threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
-                # End Motion Detection
-
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
-
-                # Sobel Edge Detection
-                edgesx = cv.Sobel(blurredImage, -1, dx=1, dy=0, ksize=1)
-                edgesy = cv.Sobel(blurredImage, -1, dx=0, dy=1, ksize=1)
 
                 # Draw Countours from Motion Detection to Edges Image
                 contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
                 drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
+                # End Motion Detection ##############################################
+
+                # WAIT
+                # 1 Second Divided by the Expected Frames Per Second
+                time.sleep(1 / self.fps)
+                # END WAIT
+
+                # Edge Detection ###################################################
+
+                # Sobel Edge Detection
+                edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
+
+                # End Edge Detection
+
                 # Finalize Image
-                edges = edgesx + edgesy + drawnCountours
+                edges = edgesx + edgesy
+                motionDetection = drawnCountours
 
-                # Display
-                self.axe.clear()
-                self.axe.imshow(edges, alpha=.8)
-                self.figure.draw_idle()
+                # For Display
+                finalImage = finalImage + edges + motionDetection
 
-            if self.type == 'Sobel Edge with Motion & Camera Movement detection':
-                blink = background_screenshot(self.process, 1920, 1080)
-                image = cv.cvtColor(np.asarray(blink), cv.COLOR_RGBA2GRAY)
-                # Blur the image
-                blurredImage = cv.GaussianBlur(image, (3,3), 0)
+                # Text Detection Start
 
-                # Motion Detection Section
-                if previousBlurredImage is None:
-                    # First frame; there is no previous one yet
-                    previousBlurredImage = blurredImage
-                    continue
+                lower = np.array([0, 0, 218])
+                upper = np.array([157, 54, 255])
+                mask = cv.inRange(currentFrameHSV, lower, upper)
 
-                # calculate difference and update previous frame
-                diffImages = cv.absdiff(src1=previousBlurredImage, src2=blurredImage)
-                previousBlurredImage = blurredImage
+                # Create horizontal kernel and dilate to connect text characters
+                kernel = cv.getStructuringElement(cv.MORPH_RECT, (5,3))
+                dilate = cv.dilate(mask, kernel, iterations=5)
+
+                # Find contours and filter using aspect ratio
+                # Remove non-text contours by filling in the contour
+                cnts = cv.findContours(dilate, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+                cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+                for c in cnts:
+                    x,y,w,h = cv.boundingRect(c)
+                    ar = w / float(h)
+                    if ar < 5:
+                        cv.drawContours(dilate, [c], -1, (0,0,0), -1)
+
+                # Bitwise dilated image with mask, invert, then OCR
+                result = 255 - cv.bitwise_and(dilate, mask)
+                #data = pytesseract.image_to_string(result, lang='eng',config='--psm 6')
+                #print(data)
+
+                # Text Detection End
+
+                # People Detection Start (Needs Work)
+
+                # # returns the bounding boxes for the detected objects
+                # boxes, weights = hog.detectMultiScale(image, winStride=(12,12) )
+
+                # boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
+
+                # for (xA, yA, xB, yB) in boxes:
+                #     # display the detected boxes in the colour picture
+                #     cv.rectangle(image, (xA, yA), (xB, yB),
+                #                     (0, 255, 0), 2)
+
+                # People Detection End
+
+            if 'Sobel Edge' in enabledFeatures:
+                # Sobel Edge Start
 
                 # Dilute the image a bit to make differences more seeable; more suitable for contour detection
                 kernel = np.ones((5, 5))
-                diffImages = cv.dilate(diffImages, kernel, 1)
+                diffImages = cv.dilate(frameDiff, kernel, 1)
 
                 # Only take different areas that are different enough (>20 / 255)
                 threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
-                # End Motion Detection
-
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
-
-                # Sobel Edge Detection
-                edgesx = cv.Sobel(blurredImage, -1, dx=1, dy=0, ksize=1)
-                edgesy = cv.Sobel(blurredImage, -1, dx=0, dy=1, ksize=1)
 
                 # Draw Countours from Motion Detection to Edges Image
                 contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
                 drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
-                # Finalize Image
-                edges = edgesx + edgesy + drawnCountours
+                # End Motion Detection ##############################################
 
-                # Display
+                # WAIT
+                # 1 Second Divided by the Expected Frames Per Second
+                time.sleep(1 / self.fps)
+                # END WAIT
+
+                # Edge Detection ###################################################
+
+                # Sobel Edge Detection
+                edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
+
+                # End Edge Detection
+
+                # Finalize Image
+                edges = edgesx + edgesy
+                motionDetection = drawnCountours
+
+                # For Display
+                finalImage = finalImage + edges + motionDetection
+
+                # Text Detection Start
+
+                lower = np.array([0, 0, 218])
+                upper = np.array([157, 54, 255])
+                mask = cv.inRange(currentFrameHSV, lower, upper)
+
+                # Create horizontal kernel and dilate to connect text characters
+                kernel = cv.getStructuringElement(cv.MORPH_RECT, (5,3))
+                dilate = cv.dilate(mask, kernel, iterations=5)
+
+                # Find contours and filter using aspect ratio
+                # Remove non-text contours by filling in the contour
+                cnts = cv.findContours(dilate, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+                cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+                for c in cnts:
+                    x,y,w,h = cv.boundingRect(c)
+                    ar = w / float(h)
+                    if ar < 5:
+                        cv.drawContours(dilate, [c], -1, (0,0,0), -1)
+
+                # Bitwise dilated image with mask, invert, then OCR
+                result = 255 - cv.bitwise_and(dilate, mask)
+                #data = pytesseract.image_to_string(result, lang='eng',config='--psm 6')
+                #print(data)
+
+                # Text Detection End
+
+                # People Detection Start (Needs Work)
+
+                # # returns the bounding boxes for the detected objects
+                # boxes, weights = hog.detectMultiScale(image, winStride=(12,12) )
+
+                # boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
+
+                # for (xA, yA, xB, yB) in boxes:
+                #     # display the detected boxes in the colour picture
+                #     cv.rectangle(image, (xA, yA), (xB, yB),
+                #                     (0, 255, 0), 2)
+
+                # Sobel Edge End
+
+            # Display
+            if finalImage is not None:
                 self.axe.clear()
-                self.axe.imshow(edges, alpha=.8)
+                self.axe.imshow(finalImage, alpha=1)
                 self.figure.draw_idle()
 
 
@@ -269,21 +375,42 @@ class Overlay(QtWidgets.QWidget):
         self.layout.addWidget(clientSelectorContainer)
         ## End Client Selector
 
+        ## Feature Selector
+        featureSelectorContainer = QtWidgets.QWidget()
+        featureSelectorLayout = QtWidgets.QVBoxLayout(featureSelectorContainer)
+
+        featureSelectorLabel = QtWidgets.QLabel('Select Features:')
+        featureSelectorLabel.setFont(QtGui.QFont('Arial', 15))
+        featureSelectorLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
+        featureSelectorLayout.addWidget(featureSelectorLabel)
+
+        self.featureSelector = CheckableComboBox()
+
+        # Iterating through all the running processes
+        for feature in AVAILABLE_FEATURES:
+            self.featureSelector.addItem(feature, userData=feature)
+
+        featureSelectorLayout.addWidget(self.featureSelector)
+        featureSelectorLayout.addStretch()
+
+        self.layout.addWidget(featureSelectorContainer)
+        ## End Feature Selector
+
         ## Status Indicator
-        statusContainer = QtWidgets.QWidget()
-        statusLayout = QtWidgets.QVBoxLayout(statusContainer)
+        # statusContainer = QtWidgets.QWidget()
+        # statusLayout = QtWidgets.QVBoxLayout(statusContainer)
 
-        statusLabel = QtWidgets.QLabel('Status:')
-        statusLabel.setFont(QtGui.QFont('Arial', 15))
-        statusLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
-        status = QtWidgets.QLabel('Active')
-        status.setFont(QtGui.QFont('Arial', 15))
-        status.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
-        statusLayout.addWidget(statusLabel, alignment = (QtCore.Qt.AlignTop))
-        statusLayout.addWidget(status, alignment = (QtCore.Qt.AlignTop))
-        statusLayout.addStretch()
+        # statusLabel = QtWidgets.QLabel('Status:')
+        # statusLabel.setFont(QtGui.QFont('Arial', 15))
+        # statusLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
+        # status = QtWidgets.QLabel('Active')
+        # status.setFont(QtGui.QFont('Arial', 15))
+        # status.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
+        # statusLayout.addWidget(statusLabel, alignment = (QtCore.Qt.AlignTop))
+        # statusLayout.addWidget(status, alignment = (QtCore.Qt.AlignTop))
+        # statusLayout.addStretch()
 
-        self.layout.addWidget(statusContainer)
+        # self.layout.addWidget(statusContainer)
         ## End Status
 
         ## Preview Indicator
@@ -309,9 +436,8 @@ class Overlay(QtWidgets.QWidget):
         time.sleep(3)
         self.active.clear()
         axe = self.preview.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
-        VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, axe=axe)
+        VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, axe=axe, queue=ENABLED_FEATURES)
         pyplot.show()
-
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Escape:
@@ -329,6 +455,38 @@ class QTCanvas(FigureCanvasQTAgg):
         super(QTCanvas, self).__init__(figure)
         self.setStyleSheet("background-color:transparent;")
 
+
+# Custom PYQT Classes
+class CheckableComboBox(QtWidgets.QComboBox):
+
+    def __init__(self):
+        super(CheckableComboBox, self).__init__()
+        self.view().pressed.connect(self.handleItemPressed)
+        self.setModel(QtGui.QStandardItemModel(self))
+
+    def handleItemPressed(self, index):
+        features = []
+        item = self.model().itemFromIndex(index)
+        if item.checkState() == QtCore.Qt.Checked:
+            item.setCheckState(QtCore.Qt.Unchecked)
+        else:
+            item.setCheckState(QtCore.Qt.Checked)
+            features.append(item.text())
+        ENABLED_FEATURES.put(features)
+
+    # Extension of Class Method: addItem
+    def addItem(self, item, userData):
+
+        # Add Item
+        super().addItem(item, userData=item)
+
+        # TODO: Inefficient. We only need to setCheckState of the added item
+        for i in range(self.model().rowCount()):
+            item = self.model().item(i)
+            item.setCheckState(QtCore.Qt.Unchecked)
+
+        # Pass Extension
+        pass
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])
