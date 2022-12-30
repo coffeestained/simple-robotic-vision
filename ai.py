@@ -7,6 +7,7 @@ import time
 import datetime
 import threading
 from queue import Queue
+from functools import reduce
 #import math
 
 ## Image Processing Imports
@@ -85,13 +86,30 @@ class VisionThread(threading.Thread):
         img_clahe = cv.merge((img_l, a, b))
         return cv.cvtColor(img_clahe, cv.COLOR_Lab2BGR)
 
+    def get_sub_images(image, contours):
+        """
+        Crop images according to the contour bounding boxes and return them in a
+        list.
+
+        Args:
+            image: numpy.ndarray
+            contours: list
+
+        Returns:
+            list
+        """
+        sub_images = []
+        for cnt in contours:
+            x, y, w, h = cv.boundingRect(cnt)
+            sub_image = image[slice(y, y+h), slice(x, x+w)]
+            sub_images.append(sub_image)
+        return sub_images
+
     def run(self):
         # Stuff Variables
 
         # Features/Layers Enabled
         enabledFeatures = []
-
-
 
         # Babies first steps
         previousFrame = background_screenshot(self.process, 1920, 1080)
@@ -104,7 +122,7 @@ class VisionThread(threading.Thread):
         currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
         currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
 
-   #    HOG Descriptors
+        #    HOG Descriptors
         # hog = cv.HOGDescriptor()
         # hog.setSVMDetector(cv.CascadeClassifier.detectMultiScale(
         #     currentFrameGray,
@@ -120,8 +138,9 @@ class VisionThread(threading.Thread):
             beginTime = datetime.datetime.now()
 
             # Final Image Delcration
-            finalImage = None
+            finalImage = []
 
+            # Check for enabled layer changes
             if self.queue.empty() == False:
                 enabledFeatures = self.queue.get(block=False)
                 self.queue.task_done()
@@ -149,7 +168,7 @@ class VisionThread(threading.Thread):
                 frameDiff = diffImages = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
 
                 # Set Image
-                finalImage = np.empty( (1080,1920) )
+                finalImage.append( np.empty( (1080,1920) ) )
 
             # Loop continues its thing
             # Based on type of class
@@ -160,7 +179,7 @@ class VisionThread(threading.Thread):
                                             blockSize = 5)
 
                 # Calculate Disparity
-                finalImage = finalImage + stereo.compute(previousFrameGray, currentFrameGray)
+                finalImage.append(stereo.compute(previousFrameGray, currentFrameGray))
 
             if 'Motion Detection' in enabledFeatures:
                 # Motion Detection Section ##################################
@@ -176,7 +195,7 @@ class VisionThread(threading.Thread):
                 contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
                 drawnContours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
-                finalImage = finalImage + drawnContours
+                finalImage.append(drawnContours)
                 # End Motion Detection ##############################################
 
             if 'Sobel Edge' in enabledFeatures:
@@ -185,7 +204,8 @@ class VisionThread(threading.Thread):
                 # Sobel Edge Detection
                 edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
                 edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
-                finalImage = finalImage + edgesx + edgesy
+                finalImage.append(edgesx)
+                finalImage.append(edgesy)
 
                 # Sobel Edge End
 
@@ -200,7 +220,6 @@ class VisionThread(threading.Thread):
                 # Create horizontal kernel and dilate to connect text characters
                 kernel = cv.getStructuringElement(cv.MORPH_RECT, (5,3))
                 dilate = cv.dilate(mask, kernel, iterations=5)
-                finalImage = mask
 
                 # Find contours and filter using aspect ratio
                 # Remove non-text contours by filling in the contour
@@ -223,9 +242,10 @@ class VisionThread(threading.Thread):
                 pass
 
             # Display
-            if finalImage is not None and self.previewWidget.isVisible():
+            if finalImage and self.previewWidget.isVisible():
+                toBeShown = reduce(lambda a, b: a + b, finalImage)
                 self.axe.clear()
-                self.axe.imshow(finalImage, alpha=1)
+                self.axe.imshow(toBeShown, alpha=1)
                 self.figure.draw_idle()
 
             # End Stop Watch
