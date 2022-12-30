@@ -243,7 +243,11 @@ class VisionThread(threading.Thread):
 
             # Display
             if finalImage and self.previewWidget.isVisible():
+
+                # Reduce Layers into one
                 toBeShown = reduce(lambda a, b: a + b, finalImage)
+
+                # Show layers
                 self.axe.clear()
                 self.axe.imshow(toBeShown, alpha=1)
                 self.figure.draw_idle()
