@@ -4,6 +4,7 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 ## Other Required Imports
 import os
 import time
+import datetime
 import threading
 from queue import Queue
 #import math
@@ -61,36 +62,36 @@ def background_screenshot(hwnd, width, height):
 # A class that extends the Thread class
 class VisionThread(threading.Thread):
 
-    def __init__(self, fps, process, event, figure, axe, queue):
+    def __init__(self, fps, process, event, figure, previewWidget, axe, queue):
        threading.Thread.__init__(self)
        self.figure = figure
+       self.previewWidget = previewWidget
        self.axe = axe
        self.fps = fps
        self.process = process
        self.active = event
        self.queue = queue
+       self.wb = cv.xphoto.createGrayworldWB()
+       self.wb.setSaturationThreshold(0.99)
        self.start()
 
-    def run(self):
-        # Running Variables
+    def enchance_image(self, frame):
+        temp_img = frame
+        img_wb = self.wb.balanceWhite(temp_img)
+        img_lab = cv.cvtColor(img_wb, cv.COLOR_BGR2Lab)
+        l, a, b = cv.split(img_lab)
+        clahe = cv.createCLAHE(clipLimit=2.0,tileGridSize=(8, 8))
+        img_l = clahe.apply(l)
+        img_clahe = cv.merge((img_l, a, b))
+        return cv.cvtColor(img_clahe, cv.COLOR_Lab2BGR)
 
-        # Maintains the previous image in the vision thread
-        # Which is then used to detect differences in a frame
-        # In a number of ways
-        previousBlurredImage = None
+    def run(self):
+        # Stuff Variables
 
         # Features/Layers Enabled
         enabledFeatures = []
 
-        # The Image To Be Drawn
-        finalImage = np.empty( (1080,1920) )
 
-        # Requirements
-        stereo = None
-
-        # HOG Descriptors
-        hog = cv.HOGDescriptor()
-        hog.setSVMDetector(cv.HOGDescriptor_getDefaultPeopleDetector())
 
         # Babies first steps
         previousFrame = background_screenshot(self.process, 1920, 1080)
@@ -103,7 +104,20 @@ class VisionThread(threading.Thread):
         currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
         currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
 
+   #    HOG Descriptors
+        # hog = cv.HOGDescriptor()
+        # hog.setSVMDetector(cv.CascadeClassifier.detectMultiScale(
+        #     currentFrameGray,
+        #         scaleFactor=1.3,
+        #         minNeighbors=4,
+        #         minSize=(30, 30),
+        #         flags=cv.CASCADE_SCALE_IMAGE
+        # ))
+
         while True:
+
+            # Stop Watch Init
+            beginTime = datetime.datetime.now()
 
             # Final Image Delcration
             finalImage = None
@@ -119,9 +133,6 @@ class VisionThread(threading.Thread):
             # If Active
             if enabledFeatures:
 
-                # Set Image
-                finalImage = np.empty( (1080,1920) )
-
                 # Rotate Frames for diff checks
                 previousFrame = currentFrame
                 previousFrameGray = currentFrameGray
@@ -131,11 +142,14 @@ class VisionThread(threading.Thread):
                 time.sleep(1 / self.fps)
 
                 currentFrame = background_screenshot(self.process, 1920, 1080)
-                currentFrameGray = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_RGBA2GRAY)
-                currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
-                currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
+                currentFrameGray = cv.cvtColor(self.enchance_image(np.asarray(currentFrame)), cv.COLOR_RGBA2GRAY)
+                currentFrameHSV = cv.cvtColor(self.enchance_image(np.asarray(currentFrame)), cv.COLOR_BGR2HSV)
+                currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3, 3), 0)
 
                 frameDiff = diffImages = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
+
+                # Set Image
+                finalImage = np.empty( (1080,1920) )
 
             # Loop continues its thing
             # Based on type of class
@@ -146,7 +160,7 @@ class VisionThread(threading.Thread):
                                             blockSize = 5)
 
                 # Calculate Disparity
-                finalImage = finalImage + stereo.compute(previousFrameGray, previousFrameGray)
+                finalImage = finalImage + stereo.compute(previousFrameGray, currentFrameGray)
 
             if 'Motion Detection' in enabledFeatures:
                 # Motion Detection Section ##################################
@@ -160,106 +174,22 @@ class VisionThread(threading.Thread):
 
                 # Draw Countours from Motion Detection to Edges Image
                 contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
-                drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
+                drawnContours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
+                finalImage = finalImage + drawnContours
                 # End Motion Detection ##############################################
-
-                # WAIT
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
-                # END WAIT
-
-                # Edge Detection ###################################################
-
-                # Sobel Edge Detection
-                edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
-                edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
-
-                # End Edge Detection
-
-                # Finalize Image
-                edges = edgesx + edgesy
-                motionDetection = drawnCountours
-
-                # For Display
-                finalImage = finalImage + edges + motionDetection
-
-                # Text Detection Start
-
-                lower = np.array([0, 0, 218])
-                upper = np.array([157, 54, 255])
-                mask = cv.inRange(currentFrameHSV, lower, upper)
-
-                # Create horizontal kernel and dilate to connect text characters
-                kernel = cv.getStructuringElement(cv.MORPH_RECT, (5,3))
-                dilate = cv.dilate(mask, kernel, iterations=5)
-
-                # Find contours and filter using aspect ratio
-                # Remove non-text contours by filling in the contour
-                cnts = cv.findContours(dilate, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-                cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-                for c in cnts:
-                    x,y,w,h = cv.boundingRect(c)
-                    ar = w / float(h)
-                    if ar < 5:
-                        cv.drawContours(dilate, [c], -1, (0,0,0), -1)
-
-                # Bitwise dilated image with mask, invert, then OCR
-                result = 255 - cv.bitwise_and(dilate, mask)
-                #data = pytesseract.image_to_string(result, lang='eng',config='--psm 6')
-                #print(data)
-
-                # Text Detection End
-
-                # People Detection Start (Needs Work)
-
-                # # returns the bounding boxes for the detected objects
-                # boxes, weights = hog.detectMultiScale(image, winStride=(12,12) )
-
-                # boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
-
-                # for (xA, yA, xB, yB) in boxes:
-                #     # display the detected boxes in the colour picture
-                #     cv.rectangle(image, (xA, yA), (xB, yB),
-                #                     (0, 255, 0), 2)
-
-                # People Detection End
 
             if 'Sobel Edge' in enabledFeatures:
                 # Sobel Edge Start
 
-                # Dilute the image a bit to make differences more seeable; more suitable for contour detection
-                kernel = np.ones((5, 5))
-                diffImages = cv.dilate(frameDiff, kernel, 1)
-
-                # Only take different areas that are different enough (>20 / 255)
-                threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
-
-                # Draw Countours from Motion Detection to Edges Image
-                contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
-                drawnCountours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
-
-                # End Motion Detection ##############################################
-
-                # WAIT
-                # 1 Second Divided by the Expected Frames Per Second
-                time.sleep(1 / self.fps)
-                # END WAIT
-
-                # Edge Detection ###################################################
-
                 # Sobel Edge Detection
                 edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
                 edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
+                finalImage = finalImage + edgesx + edgesy
 
-                # End Edge Detection
+                # Sobel Edge End
 
-                # Finalize Image
-                edges = edgesx + edgesy
-                motionDetection = drawnCountours
-
-                # For Display
-                finalImage = finalImage + edges + motionDetection
+            if 'OCR' in enabledFeatures:
 
                 # Text Detection Start
 
@@ -270,6 +200,7 @@ class VisionThread(threading.Thread):
                 # Create horizontal kernel and dilate to connect text characters
                 kernel = cv.getStructuringElement(cv.MORPH_RECT, (5,3))
                 dilate = cv.dilate(mask, kernel, iterations=5)
+                finalImage = mask
 
                 # Find contours and filter using aspect ratio
                 # Remove non-text contours by filling in the contour
@@ -283,30 +214,32 @@ class VisionThread(threading.Thread):
 
                 # Bitwise dilated image with mask, invert, then OCR
                 result = 255 - cv.bitwise_and(dilate, mask)
-                #data = pytesseract.image_to_string(result, lang='eng',config='--psm 6')
-                #print(data)
+                data = pytesseract.image_to_string(result, lang='eng', config='--psm 6')
+                print(data)
 
                 # Text Detection End
 
-                # People Detection Start (Needs Work)
-
-                # # returns the bounding boxes for the detected objects
-                # boxes, weights = hog.detectMultiScale(image, winStride=(12,12) )
-
-                # boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
-
-                # for (xA, yA, xB, yB) in boxes:
-                #     # display the detected boxes in the colour picture
-                #     cv.rectangle(image, (xA, yA), (xB, yB),
-                #                     (0, 255, 0), 2)
-
-                # Sobel Edge End
+            if 'Biped' in enabledFeatures:
+                pass
 
             # Display
-            if finalImage is not None:
+            if finalImage is not None and self.previewWidget.isVisible():
                 self.axe.clear()
                 self.axe.imshow(finalImage, alpha=1)
                 self.figure.draw_idle()
+
+            # End Stop Watch
+            endTime = datetime.datetime.now()
+            stopWatchDiff = (endTime - beginTime)
+            # MS Conver
+            diff_in_milliseconds = stopWatchDiff.total_seconds() * 1000
+            # Round to Nearest Nearest Whole Millisceond
+            diff_in_milliseconds = round(diff_in_milliseconds)
+
+            # Print
+            diffInMilliseconds = str(diff_in_milliseconds) + " ms"
+            print(diffInMilliseconds)
+
 
 
 class Overlay(QtWidgets.QWidget):
@@ -322,6 +255,9 @@ class Overlay(QtWidgets.QWidget):
 
         ## Get Available Windows
         self.winlist, toplist = [], []
+
+        ## UI Widgets
+        self.previewWidget = QtWidgets.QWidget()
 
         def enum_cb(hwnd, results):
             self.winlist.append((hwnd, win32gui.GetWindowText(hwnd)))
@@ -384,7 +320,7 @@ class Overlay(QtWidgets.QWidget):
         featureSelectorLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
         featureSelectorLayout.addWidget(featureSelectorLabel)
 
-        self.featureSelector = CheckableComboBox()
+        self.featureSelector = FeatureCheckBox()
 
         # Iterating through all the running processes
         for feature in AVAILABLE_FEATURES:
@@ -396,26 +332,8 @@ class Overlay(QtWidgets.QWidget):
         self.layout.addWidget(featureSelectorContainer)
         ## End Feature Selector
 
-        ## Status Indicator
-        # statusContainer = QtWidgets.QWidget()
-        # statusLayout = QtWidgets.QVBoxLayout(statusContainer)
-
-        # statusLabel = QtWidgets.QLabel('Status:')
-        # statusLabel.setFont(QtGui.QFont('Arial', 15))
-        # statusLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
-        # status = QtWidgets.QLabel('Active')
-        # status.setFont(QtGui.QFont('Arial', 15))
-        # status.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
-        # statusLayout.addWidget(statusLabel, alignment = (QtCore.Qt.AlignTop))
-        # statusLayout.addWidget(status, alignment = (QtCore.Qt.AlignTop))
-        # statusLayout.addStretch()
-
-        # self.layout.addWidget(statusContainer)
-        ## End Status
-
         ## Preview Indicator
-        previewContainer = QtWidgets.QWidget()
-        previewLayout = QtWidgets.QVBoxLayout(previewContainer)
+        previewLayout = QtWidgets.QVBoxLayout(self.previewWidget)
 
         previewLabel = QtWidgets.QLabel('Preview:')
         previewLabel.setFont(QtGui.QFont('Arial', 15))
@@ -427,7 +345,28 @@ class Overlay(QtWidgets.QWidget):
         previewLayout.addWidget(self.preview, alignment = (QtCore.Qt.AlignTop))
         previewLayout.addStretch()
 
-        self.layout.addWidget(previewContainer)
+        ## Settings Selector
+        settingsSelectorContainer = QtWidgets.QWidget()
+        settingsSelectorLayout = QtWidgets.QVBoxLayout(settingsSelectorContainer)
+
+        settingsSelectorLabel = QtWidgets.QLabel('Settings:')
+        settingsSelectorLabel.setFont(QtGui.QFont('Arial', 15))
+        settingsSelectorLabel.setStyleSheet("color : #03c04a; background-color: rgba(0,0,0,.30);")
+        settingsSelectorLayout.addWidget(settingsSelectorLabel)
+
+        self.settingsSelector = SettingsCheckBox(previewWidget = self.previewWidget)
+        self.settingsSelector.currentIndexChanged.connect(self.onSettingsToggle)
+
+        # Iterating through all the running processes
+        self.settingsSelector.addItem('Toggle Preview', userData='Preview')
+
+        settingsSelectorLayout.addWidget(self.settingsSelector)
+        settingsSelectorLayout.addStretch()
+
+        self.layout.addWidget(settingsSelectorContainer)
+        ## End Settings Selector
+
+        self.layout.addWidget(self.previewWidget)
         ## End Preview
 
     def onClientSelected(self):
@@ -436,8 +375,16 @@ class Overlay(QtWidgets.QWidget):
         time.sleep(3)
         self.active.clear()
         axe = self.preview.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
-        VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, axe=axe, queue=ENABLED_FEATURES)
+        VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, previewWidget=self.previewWidget, axe=axe, queue=ENABLED_FEATURES)
         pyplot.show()
+
+    def onSettingsToggle(self):
+        processID = self.settingsSelector.currentData()
+        if (processID == 'Preview'):
+            if (self.previewWidget.isVisible()):
+                self.previewWidget.setVisible(False)
+            else:
+                self.previewWidget.setVisible(True)
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Escape:
@@ -457,21 +404,29 @@ class QTCanvas(FigureCanvasQTAgg):
 
 
 # Custom PYQT Classes
-class CheckableComboBox(QtWidgets.QComboBox):
+class FeatureCheckBox(QtWidgets.QComboBox):
 
     def __init__(self):
-        super(CheckableComboBox, self).__init__()
+        super(FeatureCheckBox, self).__init__()
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QtGui.QStandardItemModel(self))
 
     def handleItemPressed(self, index):
         features = []
+
+        # Handle Item State
         item = self.model().itemFromIndex(index)
         if item.checkState() == QtCore.Qt.Checked:
             item.setCheckState(QtCore.Qt.Unchecked)
         else:
             item.setCheckState(QtCore.Qt.Checked)
-            features.append(item.text())
+
+        # Updated New Features
+        for i in range(self.model().rowCount()):
+            item = self.model().item(i)
+            if item.checkState() == QtCore.Qt.Checked:
+                features.append(item.text())
+
         ENABLED_FEATURES.put(features)
 
     # Extension of Class Method: addItem
@@ -484,6 +439,39 @@ class CheckableComboBox(QtWidgets.QComboBox):
         for i in range(self.model().rowCount()):
             item = self.model().item(i)
             item.setCheckState(QtCore.Qt.Unchecked)
+
+        # Pass Extension
+        pass
+
+
+class SettingsCheckBox(QtWidgets.QComboBox):
+
+    def __init__(self, previewWidget):
+        super(SettingsCheckBox, self).__init__()
+        self.view().pressed.connect(self.handleItemPressed)
+        self.setModel(QtGui.QStandardItemModel(self))
+        self.previewWidget = previewWidget
+
+    def handleItemPressed(self, index):
+            # Handle Item State
+            item = self.model().itemFromIndex(index)
+            if item.checkState() == QtCore.Qt.Checked:
+                item.setCheckState(QtCore.Qt.Unchecked)
+                self.previewWidget.setVisible(False)
+            else:
+                item.setCheckState(QtCore.Qt.Checked)
+                self.previewWidget.setVisible(True)
+
+    # Extension of Class Method: addItem
+    def addItem(self, item, userData):
+
+        # Add Item
+        super().addItem(item, userData=item)
+
+        # TODO: Inefficient. We only need to setCheckState of the added item
+        for i in range(self.model().rowCount()):
+            item = self.model().item(i)
+            item.setCheckState(QtCore.Qt.Checked)
 
         # Pass Extension
         pass
