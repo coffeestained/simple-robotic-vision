@@ -359,9 +359,13 @@ class VisionThread(threading.Thread):
 
                 featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
                 previousFeaturesTrackedInt0 = self.findTrackedObjects(previousFrameGray)
+
+                # TODO
+                # Figure out why this randomly gets returned as none
                 while featuresTrackedInt0 is None:
                     featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
 
+                # Transform
                 featuresTrackedInt0 = np.int0(featuresTrackedInt0)
                 previousFeaturesTrackedInt0 = np.int0(previousFeaturesTrackedInt0)
 
@@ -389,14 +393,8 @@ class VisionThread(threading.Thread):
                         # draw a white rectangle to visualize the bounding rect
                         cv.rectangle(extractedContour, (x, y), (x + w, y + h), 255, 1)
 
-                # SFM Results
-
-                previewImage.add_layer('sfm_start_matrix', sfmGradient)
-
-                ## End SFM Results
-
-                # Apply Others
-                #previewImage.add_layer('edges_contours', extractedContour)
+                # Apply Contours & Edges
+                previewImage.add_layer('edges_contours', extractedContour)
                 previewImage.add_layer('edges', edges)
 
                 # Sobel Edge End
