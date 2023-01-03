@@ -4,10 +4,13 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 ## Other Required Imports
 import os
 import time
+import math
 import datetime
 import threading
 from queue import Queue
 from functools import reduce
+import asyncio
+
 #import math
 
 ## Image Processing Imports
@@ -59,6 +62,138 @@ def background_screenshot(hwnd, width, height):
 
     return im
 
+class PreviewImage:
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def add_layer(self, key, val):
+        setattr(self, key, val)
+
+    def get_layer(self, key):
+        try:
+            return getattr(self, key)
+        except:
+            return False
+
+class GridImage:
+
+    def __init__(self, currentFrame, rowColCount):
+
+        # Get Shape
+        (h, w) = currentFrame.shape[:2]
+
+        # declare attributes
+        attributes = {}
+
+        # Row rowColCount
+        for rowIndex in range(rowColCount):
+            for colIndex in range(rowColCount):
+
+                xStartPos = w // rowColCount * ( rowIndex + 0 )
+                xEndPos = w // rowColCount * ( rowIndex + 1 )
+
+                yStartPos = h // rowColCount * ( colIndex + 0 )
+                yEndPos = h // rowColCount * ( colIndex + 1 )
+
+
+                key = str(rowIndex) + '.' + str(colIndex)
+
+                #topLeft = image[0:cY, 0:cX]
+                #topRight = image[0:cY, cX:w]
+                attributes[key] = currentFrame[ yStartPos: yEndPos, xStartPos: xEndPos ]
+                if (rowIndex == 0 and colIndex == 0 or rowIndex == rowColCount - 1 and colIndex == rowColCount - 1):
+
+                    print( xStartPos, xEndPos, yStartPos, yEndPos)
+                    print(attributes[key])
+                    print(h, w)
+
+        for key in attributes:
+
+            setattr(self, key, attributes[key])
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def reset(self, currentFrame, rowColCount):
+        # Get Shape
+        (h, w) = currentFrame.shape[:2]
+
+        # declare attributes
+        attributes = {}
+
+        # Row rowColCount
+        for rowIndex in range(rowColCount):
+            for colIndex in range(rowColCount):
+
+                xStartPos = w // rowColCount * ( rowIndex + 0 )
+                xEndPos = w // rowColCount * ( rowIndex + 1 )
+
+                yStartPos = h // rowColCount * ( colIndex + 0 )
+                yEndPos = h // rowColCount * ( colIndex + 1 )
+
+                key = str(rowIndex) + '.' + str(colIndex)
+
+                attributes[key] = currentFrame[ yStartPos: yEndPos, xStartPos: xEndPos ]
+
+        for key in attributes:
+            setattr(self, key, attributes[key])
+
+    def update(self, attributes):
+        for key in attributes:
+            setattr(self, key, attributes[key])
+
+    def as_view(self):
+
+        # Declare Repsonse
+        response = None
+
+        # Opts
+        grid_length = len(self.__dict__.items())
+        sqRt = math.sqrt(grid_length)
+        count = 0
+
+        # Response Structuring
+        rows = []
+        row =  []
+        for attr, value in self.__dict__.items():
+
+            # Increase count
+            count = count + 1
+
+            # Value
+            x, y, w, h = cv.boundingRect(cv.cvtColor(np.asarray(value), cv.COLOR_RGBA2GRAY))
+            value = cv.rectangle(value, (x, y), (x + w, y + h), 255, 1)
+
+            # Append to Row
+            row.append(value)
+
+            # If index total square root
+            if count % sqRt == 0 or count == 0:
+                # Push to final
+                rows.append(row)
+
+                # Reset Row
+                row = []
+
+        return self.concat_vh(rows)
+
+    def concat_vh(self, as_response):
+
+        # As Concat Verticle and Horizontal
+        return cv.hconcat([cv.vconcat(list_h)
+                            for list_h in as_response])
+
+    def set_grid(self, key, img):
+        setattr(self, key, img)
+
+    def find_anchor_point(self, tile):
+        try:
+            return getattr(self, tile)
+        except:
+            return False
 
 # A class that extends the Thread class
 class VisionThread(threading.Thread):
@@ -72,6 +207,11 @@ class VisionThread(threading.Thread):
        self.process = process
        self.active = event
        self.queue = queue
+
+       # SFM Options
+       self.detectedContours = []
+       self.previousFrameEdges = None
+
        self.wb = cv.xphoto.createGrayworldWB()
        self.wb.setSaturationThreshold(0.99)
        self.start()
@@ -86,24 +226,9 @@ class VisionThread(threading.Thread):
         img_clahe = cv.merge((img_l, a, b))
         return cv.cvtColor(img_clahe, cv.COLOR_Lab2BGR)
 
-    def get_sub_images(image, contours):
-        """
-        Crop images according to the contour bounding boxes and return them in a
-        list.
-
-        Args:
-            image: numpy.ndarray
-            contours: list
-
-        Returns:
-            list
-        """
-        sub_images = []
-        for cnt in contours:
-            x, y, w, h = cv.boundingRect(cnt)
-            sub_image = image[slice(y, y+h), slice(x, x+w)]
-            sub_images.append(sub_image)
-        return sub_images
+    def findTrackedObjects(self, frame):
+        tracked = cv.goodFeaturesToTrack(frame, 12, .05, 350)
+        return tracked
 
     def run(self):
         # Stuff Variables
@@ -112,42 +237,36 @@ class VisionThread(threading.Thread):
         enabledFeatures = []
 
         # Babies first steps
-        previousFrame = background_screenshot(self.process, 1920, 1080)
-        previousFrameGray = cv.cvtColor(np.asarray(previousFrame), cv.COLOR_RGBA2GRAY)
-        previousFrameBlurred = cv.GaussianBlur(previousFrameGray, (3,3), 0)
-        previousFrameHSV = cv.cvtColor(np.asarray(previousFrame), cv.COLOR_BGR2HSV)
+        currentFrame = self.enchance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
+        currentFrameGray = cv.cvtColor(currentFrame, cv.COLOR_RGBA2GRAY)
+        currentFrameHSV = cv.cvtColor(currentFrame, cv.COLOR_BGR2HSV)
+        currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3, 3), 0)
 
-        currentFrame = background_screenshot(self.process, 1920, 1080)
-        currentFrameGray = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_RGBA2GRAY)
-        currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3,3), 0)
-        currentFrameHSV = cv.cvtColor(np.asarray(currentFrame), cv.COLOR_BGR2HSV)
+        # Declare Grid
+        # superimpose = GridImage(currentFrame, 10)
 
-        #    HOG Descriptors
-        # hog = cv.HOGDescriptor()
-        # hog.setSVMDetector(cv.CascadeClassifier.detectMultiScale(
-        #     currentFrameGray,
-        #         scaleFactor=1.3,
-        #         minNeighbors=4,
-        #         minSize=(30, 30),
-        #         flags=cv.CASCADE_SCALE_IMAGE
-        # ))
+        # Final Image Delcration
+        previewImage = PreviewImage()
 
         while True:
 
             # Stop Watch Init
             beginTime = datetime.datetime.now()
 
-            # Final Image Delcration
-            finalImage = []
-
             # Check for enabled layer changes
             if self.queue.empty() == False:
-                enabledFeatures = self.queue.get(block=False)
+                enabledFeatures     = self.queue.get(block=False)
                 self.queue.task_done()
 
             # Stop Thread Flag Check
             if self.active.is_set():
                     break
+
+            # Technically only enforces a minimum fps rather than a true fps.
+            # For instance, if 5 fps selected I believe that would return .20 in a sleep
+            # However, class computation would then increase the time for a full frame
+            # to generate.
+            time.sleep(1 / self.fps)
 
             # If Active
             if enabledFeatures:
@@ -158,17 +277,14 @@ class VisionThread(threading.Thread):
                 previousFrameHSV = currentFrameHSV
                 previousFrameBlurred = currentFrameBlurred
 
-                time.sleep(1 / self.fps)
-
-                currentFrame = background_screenshot(self.process, 1920, 1080)
-                currentFrameGray = cv.cvtColor(self.enchance_image(np.asarray(currentFrame)), cv.COLOR_RGBA2GRAY)
-                currentFrameHSV = cv.cvtColor(self.enchance_image(np.asarray(currentFrame)), cv.COLOR_BGR2HSV)
+                currentFrame = self.enchance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
+                currentFrameGray = cv.cvtColor(currentFrame, cv.COLOR_RGBA2GRAY)
+                currentFrameHSV = cv.cvtColor(currentFrame, cv.COLOR_BGR2HSV)
                 currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3, 3), 0)
 
-                frameDiff = diffImages = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
+                frameDiff = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
 
-                # Set Image
-                finalImage.append( np.empty( (1080,1920) ) )
+
 
             # Loop continues its thing
             # Based on type of class
@@ -179,33 +295,109 @@ class VisionThread(threading.Thread):
                                             blockSize = 5)
 
                 # Calculate Disparity
-                finalImage.append(stereo.compute(previousFrameGray, currentFrameGray))
+                previewImage.add_layer('stereo', stereo.compute(previousFrameGray, currentFrameGray))
+
+            if 'Superimpose' in enabledFeatures:
+
+                # Declare Grid
+                superimpose = GridImage(currentFrame, 10)
 
             if 'Motion Detection' in enabledFeatures:
                 # Motion Detection Section ##################################
 
                 # Dilute the image a bit to make differences more seeable; more suitable for contour detection
-                kernel = np.ones((5, 5))
-                diffImages = cv.dilate(frameDiff, kernel, 1)
+                kernel = np.ones((11, 11))
+                frameDiffDilated = cv.dilate(frameDiff, kernel, 1)
 
                 # Only take different areas that are different enough (>20 / 255)
-                threshImage = cv.threshold(src=diffImages, thresh=20, maxval=255, type=cv.THRESH_BINARY)[1]
+                threshImage = cv.threshold(src=frameDiffDilated, thresh=30, maxval=255, type=cv.THRESH_BINARY)[1]
 
                 # Draw Countours from Motion Detection to Edges Image
                 contours, _ = cv.findContours(image=threshImage, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
                 drawnContours = cv.drawContours(image=threshImage, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv.LINE_AA)
 
-                finalImage.append(drawnContours)
+                # Apply Drawn Blobs/Contour
+                previewImage.add_layer('motion_detected', drawnContours)
+
+                if 'Motion Detection Objects' in enabledFeatures:
+                    squareLayer = np.empty( (1080,1920) )
+                    for c in contours:
+                        # get the bounding rect
+                        x, y, w, h = cv.boundingRect(c)
+                        # draw a white rectangle to visualize the bounding rect
+                        cv.rectangle(squareLayer, (x, y), (x + w, y + h), 255, 1)
+
+                    previewImage.add_layer('motion_detected_squares', squareLayer)
                 # End Motion Detection ##############################################
 
             if 'Sobel Edge' in enabledFeatures:
                 # Sobel Edge Start
 
                 # Sobel Edge Detection
+
                 edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
                 edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
-                finalImage.append(edgesx)
-                finalImage.append(edgesy)
+                edges = edgesx + edgesy
+
+                # Tresh Edges
+                treshedEdges = cv.threshold(src=edges, thresh=150, maxval=255, type=cv.THRESH_BINARY)[1]
+                kernel = np.ones((21, 21))
+                treshedEdgesDilated = cv.dilate(treshedEdges, kernel, 1)
+
+                # Get Countours of Edges
+                contours, _ = cv.findContours(treshedEdgesDilated, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+                # Calculate SFM
+
+                # Declare Feature Layer Utilities
+                sfmGradient = np.empty( (1080,1920) )
+
+                # Promisify and process contourDetection
+                #loop = asyncio.new_event_loop()
+                #loop.run_until_complete(self.main(edges))
+                #loop.close()
+
+                featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
+                previousFeaturesTrackedInt0 = self.findTrackedObjects(previousFrameGray)
+                while featuresTrackedInt0 is None:
+                    featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
+
+                featuresTrackedInt0 = np.int0(featuresTrackedInt0)
+                previousFeaturesTrackedInt0 = np.int0(previousFeaturesTrackedInt0)
+
+                for feature in featuresTrackedInt0:
+                    x, y = feature.ravel()
+                    cv.circle(sfmGradient, (x, y), 50, (255, 0, 255), -1)
+
+                for feature in previousFeaturesTrackedInt0:
+                    x, y = feature.ravel()
+                    cv.circle(sfmGradient, (x, y), 50, (255, 255, 0), -1)
+
+                previewImage.add_layer('sfm_matrix', sfmGradient)
+
+                # End Calculate SFM
+
+                # Iterate Contours
+                extractedContour = np.empty( (1080,1920) )
+                for contour in contours:
+                        # get the bounding rect
+                        x, y, w, h = cv.boundingRect(contour)
+
+                        # Get Image From BB
+                        extractedContour[y: y + h, x: x + w] = edges[y: y + h, x: x + w]
+
+                        # draw a white rectangle to visualize the bounding rect
+                        cv.rectangle(extractedContour, (x, y), (x + w, y + h), 255, 1)
+
+                # SFM Results
+
+                previewImage.add_layer('sfm_start_matrix', sfmGradient)
+
+                ## End SFM Results
+
+                # Apply Others
+                #previewImage.add_layer('edges_contours', extractedContour)
+                previewImage.add_layer('edges', edges)
 
                 # Sobel Edge End
 
@@ -238,14 +430,79 @@ class VisionThread(threading.Thread):
 
                 # Text Detection End
 
+            if 'Structure from Motion' in enabledFeatures:
+                # Structure from Motion Start
+
+                # OPTS
+                # Defining the dimensions of checkerboard
+                CHECKERBOARD = (6, 9)
+
+                criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+                # Creating vector to store vectors of 3D points for each checkerboard image
+                objpoints = []
+
+                # Creating vector to store vectors of 2D points for each checkerboard image
+                imgpoints = []
+
+                # Defining the world coordinates for 3D points
+                objp = np.zeros((1, CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
+                objp[0,:,:2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
+
+                #TODO: Replace K with given Intrinsic Matrix
+                K = np.array([[518.86, 0., 285.58],
+                            [0., 519.47, 213.74],
+                            [0.,   0.,   1.]])
+
+                # Structure from Motion Detection
+                frames = [previousFrameGray, currentFrameGray]
+                for gray in frames:
+
+                    # Find the chess board corners
+                    # If desired number of corners are found in the image then ret = true
+                    ret, corners = cv.findChessboardCorners(gray, CHECKERBOARD, cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_FAST_CHECK + cv.CALIB_CB_NORMALIZE_IMAGE)
+
+                    """
+                    If desired number of corner are detected,
+                    we refine the pixel coordinates and display
+                    them on the images of checker board
+                    """
+                    if ret == True:
+                        objpoints.append(objp)
+                        # refining pixel coordinates for given 2d points.
+                        corners2 = cv.cornerSubPix(gray, corners, (11,11),(-1,-1), criteria)
+
+                        imgpoints.append(corners2)
+
+                        # Draw and display the corners
+                        img = cv.drawChessboardCorners(gray, CHECKERBOARD, corners2, ret)
+
+                # Apply
+                previewImage.add_layer('points', imgpoints)
+
+                # Structure from Motion End
+
             if 'Biped' in enabledFeatures:
                 pass
 
             # Display
-            if finalImage and self.previewWidget.isVisible():
+            if self.previewWidget.isVisible():
 
                 # Reduce Layers into one
-                toBeShown = reduce(lambda a, b: a + b, finalImage)
+                toBeShown = np.empty( (1080,1920) )
+
+                # Test Grid
+                # view = superimpose.as_view()
+
+                # Transform Layers as View
+                dictImage = dict(previewImage)
+                for key, value in dictImage.items():
+                    try:
+                        toBeShown = toBeShown + value
+                    except Exception as err:
+                        msg = key + ' error:'
+                        print(msg)
+                        print(err)
 
                 # Show layers
                 self.axe.clear()
@@ -255,8 +512,10 @@ class VisionThread(threading.Thread):
             # End Stop Watch
             endTime = datetime.datetime.now()
             stopWatchDiff = (endTime - beginTime)
-            # MS Conver
+
+            # MS Conversion
             diff_in_milliseconds = stopWatchDiff.total_seconds() * 1000
+
             # Round to Nearest Nearest Whole Millisceond
             diff_in_milliseconds = round(diff_in_milliseconds)
 
@@ -265,7 +524,7 @@ class VisionThread(threading.Thread):
             print(diffInMilliseconds)
 
 
-
+## Overlay Application
 class Overlay(QtWidgets.QWidget):
 
     def __init__(self):
@@ -416,7 +675,6 @@ class Overlay(QtWidgets.QWidget):
             self.close()
             quit()
 
-
 class QTCanvas(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, width=6, height=4, dpi=100):
@@ -425,7 +683,6 @@ class QTCanvas(FigureCanvasQTAgg):
         self.axes = figure
         super(QTCanvas, self).__init__(figure)
         self.setStyleSheet("background-color:transparent;")
-
 
 # Custom PYQT Classes
 class FeatureCheckBox(QtWidgets.QComboBox):
@@ -466,7 +723,6 @@ class FeatureCheckBox(QtWidgets.QComboBox):
 
         # Pass Extension
         pass
-
 
 class SettingsCheckBox(QtWidgets.QComboBox):
 
