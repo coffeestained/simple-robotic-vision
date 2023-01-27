@@ -1,2 +1,2 @@
-AVAILABLE_FEATURES=Sobel Edge,Motion Detection,Stereo,OCR,Biped
+AVAILABLE_FEATURES=Stopwatch,Sobel Edge,Sobel Edge Motion Detection,Motion Detection,Motion Detection Objects,Stereo,OCR,Biped,Superimpose
 TESSERACT_PATH=<path>

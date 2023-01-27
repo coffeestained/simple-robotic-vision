@@ -209,14 +209,20 @@ class VisionThread(threading.Thread):
        self.queue = queue
 
        # SFM Options
-       self.detectedContours = []
        self.previousFrameEdges = None
 
+       # Contours
+       self.currentFrameContours = []
+       self.previousFrameContours = []
+
+       # WB
        self.wb = cv.xphoto.createGrayworldWB()
        self.wb.setSaturationThreshold(0.99)
+
+       # Start
        self.start()
 
-    def enchance_image(self, frame):
+    def enhance_image(self, frame):
         temp_img = frame
         img_wb = self.wb.balanceWhite(temp_img)
         img_lab = cv.cvtColor(img_wb, cv.COLOR_BGR2Lab)
@@ -227,8 +233,18 @@ class VisionThread(threading.Thread):
         return cv.cvtColor(img_clahe, cv.COLOR_Lab2BGR)
 
     def findTrackedObjects(self, frame):
-        tracked = cv.goodFeaturesToTrack(frame, 12, .05, 350)
+        # TODO
+        # Scale Points Dynamically to input size to reduce bloat
+        pointsToTrack = 50
+
+        # Euclidean Distance
+        minDistance = 300
+
+        qualityLevel = .08
+
+        tracked = cv.goodFeaturesToTrack(frame, pointsToTrack, qualityLevel, minDistance)
         return tracked
+
 
     def run(self):
         # Stuff Variables
@@ -237,10 +253,16 @@ class VisionThread(threading.Thread):
         enabledFeatures = []
 
         # Babies first steps
-        currentFrame = self.enchance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
+        currentFrame = self.enhance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
         currentFrameGray = cv.cvtColor(currentFrame, cv.COLOR_RGBA2GRAY)
         currentFrameHSV = cv.cvtColor(currentFrame, cv.COLOR_BGR2HSV)
         currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3, 3), 0)
+
+        self.currentFrameContours = []
+        self.previousFrameContours = []
+
+        self.edges = []
+        self.previousEdges = []
 
         # Declare Grid
         # superimpose = GridImage(currentFrame, 10)
@@ -277,14 +299,12 @@ class VisionThread(threading.Thread):
                 previousFrameHSV = currentFrameHSV
                 previousFrameBlurred = currentFrameBlurred
 
-                currentFrame = self.enchance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
+                currentFrame = self.enhance_image(np.asarray(background_screenshot(self.process, 1920, 1080)))
                 currentFrameGray = cv.cvtColor(currentFrame, cv.COLOR_RGBA2GRAY)
                 currentFrameHSV = cv.cvtColor(currentFrame, cv.COLOR_BGR2HSV)
                 currentFrameBlurred = cv.GaussianBlur(currentFrameGray, (3, 3), 0)
 
                 frameDiff = cv.absdiff(src1=previousFrameBlurred, src2=currentFrameBlurred)
-
-
 
             # Loop continues its thing
             # Based on type of class
@@ -305,7 +325,7 @@ class VisionThread(threading.Thread):
             if 'Motion Detection' in enabledFeatures:
                 # Motion Detection Section ##################################
 
-                # Dilute the image a bit to make differences more seeable; more suitable for contour detection
+                # Dilute the image a bit to make differences more visible; more suitable for contour detection
                 kernel = np.ones((11, 11))
                 frameDiffDilated = cv.dilate(frameDiff, kernel, 1)
 
@@ -339,63 +359,90 @@ class VisionThread(threading.Thread):
                 edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
                 edges = edgesx + edgesy
 
+                # Add Sobel Edge
+                previewImage.add_layer('edges', edges)
+
+                # Sobel Edge End
+
+            if 'Sobel Edge Motion Detection' in enabledFeatures:
+                # Sobel Edge Start
+
+                # Set Previous From Current
+                self.previousEdges = self.edges if len(self.edges) else []
+
+                # Sobel Edge Detection
+                edgesx = cv.Sobel(currentFrameBlurred, -1, dx=1, dy=0, ksize=1)
+                edgesy = cv.Sobel(currentFrameBlurred, -1, dx=0, dy=1, ksize=1)
+                self.edges = edgesx + edgesy
+
                 # Tresh Edges
-                treshedEdges = cv.threshold(src=edges, thresh=150, maxval=255, type=cv.THRESH_BINARY)[1]
+                treshedEdges = cv.threshold(src=self.edges, thresh=150, maxval=255, type=cv.THRESH_BINARY)[1]
                 kernel = np.ones((21, 21))
                 treshedEdgesDilated = cv.dilate(treshedEdges, kernel, 1)
 
+                # Set Previous From Current
+                self.previousFrameContours = self.currentFrameContours if len(self.currentFrameContours) else []
+
+                # Reset Current Contours
+                self.currentFrameContours = []
+
                 # Get Countours of Edges
-                contours, _ = cv.findContours(treshedEdgesDilated, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+                self.currentFrameContours, _ = cv.findContours(treshedEdgesDilated, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
-                # Calculate SFM
+                # Declare Line Movement Feature Layer Utilities
+                lineMovementContainer = np.empty( (1080,1920) )
 
-                # Declare Feature Layer Utilities
-                sfmGradient = np.empty( (1080,1920) )
-
-                # Promisify and process contourDetection
-                #loop = asyncio.new_event_loop()
-                #loop.run_until_complete(self.main(edges))
-                #loop.close()
-
-                featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
-                previousFeaturesTrackedInt0 = self.findTrackedObjects(previousFrameGray)
-
-                # TODO
-                # Figure out why this randomly gets returned as none
-                while featuresTrackedInt0 is None:
-                    featuresTrackedInt0 = self.findTrackedObjects(currentFrameGray)
-
-                # Transform
-                featuresTrackedInt0 = np.int0(featuresTrackedInt0)
-                previousFeaturesTrackedInt0 = np.int0(previousFeaturesTrackedInt0)
-
-                for feature in featuresTrackedInt0:
-                    x, y = feature.ravel()
-                    cv.circle(sfmGradient, (x, y), 50, (255, 0, 255), -1)
-
-                for feature in previousFeaturesTrackedInt0:
-                    x, y = feature.ravel()
-                    cv.circle(sfmGradient, (x, y), 50, (255, 255, 0), -1)
-
-                previewImage.add_layer('sfm_matrix', sfmGradient)
-
-                # End Calculate SFM
-
-                # Iterate Contours
                 extractedContour = np.empty( (1080,1920) )
-                for contour in contours:
-                        # get the bounding rect
-                        x, y, w, h = cv.boundingRect(contour)
 
-                        # Get Image From BB
-                        extractedContour[y: y + h, x: x + w] = edges[y: y + h, x: x + w]
+                # ITerate Contours
+                for contour in self.currentFrameContours:
+                    # get the bounding rect
+                    x, y, w, h = cv.boundingRect(contour)
 
-                        # draw a white rectangle to visualize the bounding rect
-                        cv.rectangle(extractedContour, (x, y), (x + w, y + h), 255, 1)
+                    # Get Image From BB
+                    extractedContour[y: y + h, x: x + w] = self.edges[y: y + h, x: x + w]
+                    extractedContourRaw = self.edges[y: y + h, x: x + w]
+
+                    # Contour XY
+                    target = (x, y)
+
+                    # Try to Match Current Frame Contour with Previous Contours
+                    try:
+                        closest = None
+                        matchDiff = 100.0
+
+                        for previousContour in self.previousFrameContours:
+                            # get the bounding rect
+                            px, py, pw, ph = cv.boundingRect(previousContour)
+
+                            # Get Previous Image From BB
+                            previousExtractedContourRaw = self.previousEdges[y: py + ph, x: px + pw]
+
+                            # Previous Contour XY
+                            previousTarget = (px, py)
+
+                            matchNumber = cv.matchShapes(extractedContourRaw, previousExtractedContourRaw, 1, 0.0)
+                            if matchDiff > matchNumber:
+                                closest = previousTarget
+
+                        #closest = min(self.previousFrameContours, key=lambda point: math.hypot(target[1]-point[1], target[0]-point[0]))
+
+                        if np.any(np.not_equal(closest, target)):
+                            print(closest, target)
+
+                        # draw a line between the previous detection and the current detection
+                        cv.line(lineMovementContainer, target, closest, (255, 255, 0), 2)
+                    except Exception as e:
+                        print(e)
+                        pass
+
+                    # draw a circle to visualize the bounding rect
+                    cv.circle(extractedContour, (x, y), 15, (255, 255, 255), 2)
 
                 # Apply Contours & Edges
                 previewImage.add_layer('edges_contours', extractedContour)
-                previewImage.add_layer('edges', edges)
+                previewImage.add_layer('line_movement', lineMovementContainer)
+                #previewImage.add_layer('edges', self.edges)
 
                 # Sobel Edge End
 
@@ -428,60 +475,23 @@ class VisionThread(threading.Thread):
 
                 # Text Detection End
 
-            if 'Structure from Motion' in enabledFeatures:
-                # Structure from Motion Start
-
-                # OPTS
-                # Defining the dimensions of checkerboard
-                CHECKERBOARD = (6, 9)
-
-                criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-                # Creating vector to store vectors of 3D points for each checkerboard image
-                objpoints = []
-
-                # Creating vector to store vectors of 2D points for each checkerboard image
-                imgpoints = []
-
-                # Defining the world coordinates for 3D points
-                objp = np.zeros((1, CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
-                objp[0,:,:2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
-
-                #TODO: Replace K with given Intrinsic Matrix
-                K = np.array([[518.86, 0., 285.58],
-                            [0., 519.47, 213.74],
-                            [0.,   0.,   1.]])
-
-                # Structure from Motion Detection
-                frames = [previousFrameGray, currentFrameGray]
-                for gray in frames:
-
-                    # Find the chess board corners
-                    # If desired number of corners are found in the image then ret = true
-                    ret, corners = cv.findChessboardCorners(gray, CHECKERBOARD, cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_FAST_CHECK + cv.CALIB_CB_NORMALIZE_IMAGE)
-
-                    """
-                    If desired number of corner are detected,
-                    we refine the pixel coordinates and display
-                    them on the images of checker board
-                    """
-                    if ret == True:
-                        objpoints.append(objp)
-                        # refining pixel coordinates for given 2d points.
-                        corners2 = cv.cornerSubPix(gray, corners, (11,11),(-1,-1), criteria)
-
-                        imgpoints.append(corners2)
-
-                        # Draw and display the corners
-                        img = cv.drawChessboardCorners(gray, CHECKERBOARD, corners2, ret)
-
-                # Apply
-                previewImage.add_layer('points', imgpoints)
-
-                # Structure from Motion End
-
             if 'Biped' in enabledFeatures:
                 pass
+
+            if 'Stopwatch' in enabledFeatures:
+                # End Stop Watch
+                endTime = datetime.datetime.now()
+                stopWatchDiff = (endTime - beginTime)
+
+                # MS Conversion
+                diff_in_milliseconds = stopWatchDiff.total_seconds() * 1000
+
+                # Round to Nearest Nearest Whole Millisceond
+                diff_in_milliseconds = round(diff_in_milliseconds)
+
+                # Print
+                diffInMilliseconds = str(diff_in_milliseconds) + " ms"
+                print(diffInMilliseconds)
 
             # Display
             if self.previewWidget.isVisible():
@@ -507,19 +517,7 @@ class VisionThread(threading.Thread):
                 self.axe.imshow(toBeShown, alpha=1)
                 self.figure.draw_idle()
 
-            # End Stop Watch
-            endTime = datetime.datetime.now()
-            stopWatchDiff = (endTime - beginTime)
 
-            # MS Conversion
-            diff_in_milliseconds = stopWatchDiff.total_seconds() * 1000
-
-            # Round to Nearest Nearest Whole Millisceond
-            diff_in_milliseconds = round(diff_in_milliseconds)
-
-            # Print
-            diffInMilliseconds = str(diff_in_milliseconds) + " ms"
-            print(diffInMilliseconds)
 
 
 ## Overlay Application
