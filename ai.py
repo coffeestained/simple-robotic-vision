@@ -396,48 +396,52 @@ class VisionThread(threading.Thread):
 
                 # ITerate Contours
                 for contour in self.currentFrameContours:
-                    # get the bounding rect
-                    x, y, w, h = cv.boundingRect(contour)
+                    arcLength = cv.arcLength(contour, True)
+                    if arcLength > 200 and arcLength < 400:
+                        print('test')
 
-                    # Get Image From BB
-                    extractedContour[y: y + h, x: x + w] = self.edges[y: y + h, x: x + w]
-                    extractedContourRaw = self.edges[y: y + h, x: x + w]
+                        # get the bounding rect
+                        x, y, w, h = cv.boundingRect(contour)
 
-                    # Contour XY
-                    target = (x, y)
+                        # Get Image From BB
+                        extractedContour[y: y + h, x: x + w] = self.edges[y: y + h, x: x + w]
+                        extractedContourRaw = self.edges[y: y + h, x: x + w]
 
-                    # Try to Match Current Frame Contour with Previous Contours
-                    try:
-                        closest = None
-                        matchDiff = 100.0
+                        # Contour XY
+                        target = (x, y)
 
-                        for previousContour in self.previousFrameContours:
-                            # get the bounding rect
-                            px, py, pw, ph = cv.boundingRect(previousContour)
+                        # Try to Match Current Frame Contour with Previous Contours
+                        try:
+                            closest = None
+                            matchDiff = 100.0
 
-                            # Get Previous Image From BB
-                            previousExtractedContourRaw = self.previousEdges[y: py + ph, x: px + pw]
+                            for previousContour in self.previousFrameContours:
+                                # get the bounding rect
+                                px, py, pw, ph = cv.boundingRect(previousContour)
 
-                            # Previous Contour XY
-                            previousTarget = (px, py)
+                                # Get Previous Image From BB
+                                previousExtractedContourRaw = self.previousEdges[y: py + ph, x: px + pw]
 
-                            matchNumber = cv.matchShapes(extractedContourRaw, previousExtractedContourRaw, 1, 0.0)
-                            if matchDiff > matchNumber:
-                                closest = previousTarget
+                                # Previous Contour XY
+                                previousTarget = (px, py)
 
-                        #closest = min(self.previousFrameContours, key=lambda point: math.hypot(target[1]-point[1], target[0]-point[0]))
+                                matchNumber = cv.matchShapes(extractedContourRaw, previousExtractedContourRaw, 1, 0.0)
+                                if matchDiff > matchNumber:
+                                    closest = previousTarget
 
-                        if np.any(np.not_equal(closest, target)):
-                            print(closest, target)
+                            #closest = min(self.previousFrameContours, key=lambda point: math.hypot(target[1]-point[1], target[0]-point[0]))
 
-                        # draw a line between the previous detection and the current detection
-                        cv.line(lineMovementContainer, target, closest, (255, 255, 0), 2)
-                    except Exception as e:
-                        print(e)
-                        pass
+                            #if np.any(np.not_equal(closest, target)):
+                                #print(closest, target)
 
-                    # draw a circle to visualize the bounding rect
-                    cv.circle(extractedContour, (x, y), 15, (255, 255, 255), 2)
+                            # draw a line between the previous detection and the current detection
+                            cv.line(lineMovementContainer, target, closest, (255, 255, 0), 2)
+                        except Exception as e:
+                            print(e)
+                            pass
+
+                        # draw a circle to visualize the bounding rect
+                        cv.circle(extractedContour, (x, y), 15, (255, 255, 255), 2)
 
                 # Apply Contours & Edges
                 previewImage.add_layer('edges_contours', extractedContour)
