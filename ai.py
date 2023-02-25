@@ -350,6 +350,24 @@ class VisionThread(threading.Thread):
                     previewImage.add_layer('motion_detected_squares', squareLayer)
                 # End Motion Detection ##############################################
 
+            if 'ORB Keypoints with Motion' in enabledFeatures:
+                # ORB with Hessian 50000
+                ORB = cv.ORB_create()
+
+                # Compute Keypoints from Grayscale
+                kp, des = ORB.detectAndCompute(currentFrameGray, None)
+
+                toBeShown = np.empty( (1080,1920) )
+
+                # ORB Layer
+                img2 = cv.drawKeypoints(currentFrameGray, kp, 0, (0,0,255), cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                print(img2)
+
+                # Add ORB to PYPLOT
+                previewImage.add_layer('orb', img2)
+
+                # ORB End
+
             if 'Sobel Edge' in enabledFeatures:
                 # Sobel Edge Start
 
@@ -398,7 +416,6 @@ class VisionThread(threading.Thread):
                 for contour in self.currentFrameContours:
                     arcLength = cv.arcLength(contour, True)
                     if arcLength > 200 and arcLength < 400:
-                        print('test')
 
                         # get the bounding rect
                         x, y, w, h = cv.boundingRect(contour)
@@ -501,7 +518,7 @@ class VisionThread(threading.Thread):
             if self.previewWidget.isVisible():
 
                 # Reduce Layers into one
-                toBeShown = np.empty( (1080,1920) )
+                toBeShown = np.empty( (1080,1920,3) )
 
                 # Test Grid
                 # view = superimpose.as_view()
@@ -518,7 +535,7 @@ class VisionThread(threading.Thread):
 
                 # Show layers
                 self.axe.clear()
-                self.axe.imshow(toBeShown, alpha=1)
+                self.axe.imshow(toBeShown.astype(np.uint8), alpha=1)
                 self.figure.draw_idle()
 
 
