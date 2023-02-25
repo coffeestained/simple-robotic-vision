@@ -37,6 +37,12 @@ pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')
 AVAILABLE_FEATURES = os.getenv('AVAILABLE_FEATURES').split(',')
 ENABLED_FEATURES = Queue()
 ENABLED_FEATURES.join()
+IMAGE_TYPE_REQUIRED_MAP = {
+    'frameGray': ['ORB Keypoints with Motion','Stereo'],
+    'frameHSV': ['OCR'],
+    'frameBlurred': ['Sobel Edge', 'Sobel Edge Motion Detection', 'Motion Detection', 'Motion Detection Objects', ],
+    'frameDiff': ['Motion Detection']
+}
 
 # Background process screenshot w11
 def background_screenshot(hwnd, width, height):
@@ -675,7 +681,7 @@ class Overlay(QtWidgets.QWidget):
         time.sleep(3)
         self.active.clear()
         axe = self.preview.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
-        VisionThread(fps=5, process=processID, event=self.active, figure=self.preview, previewWidget=self.previewWidget, axe=axe, queue=ENABLED_FEATURES)
+        VisionThread(fps=20, process=processID, event=self.active, figure=self.preview, previewWidget=self.previewWidget, axe=axe, queue=ENABLED_FEATURES)
         pyplot.show()
 
     def onSettingsToggle(self):
