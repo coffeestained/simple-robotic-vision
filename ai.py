@@ -524,7 +524,7 @@ class VisionThread(threading.Thread):
             if self.previewWidget.isVisible():
 
                 # Reduce Layers into one
-                toBeShown = np.empty( (1080,1920,3) )
+                toBeShown = np.empty( (1080,1920) )
 
                 # Test Grid
                 # view = superimpose.as_view()
