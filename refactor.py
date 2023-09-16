@@ -62,14 +62,6 @@ class Window(QMainWindow):
         self.windows = WindowsOS()
         self.windows.get_processes()
 
-        # Windows Select Added to Layout
-        self.processes = QComboBox()
-        self.processes.hide()
-        self.processes.addItem('One')
-        self.processes.addItem('Two')
-        self.processes.addItem('Three')
-        self.processes.addItem('Four')
-        self.layout.addWidget(self.processes)
 
         # Show
         self.finishedLoading()
@@ -82,23 +74,34 @@ class Window(QMainWindow):
         self.cv2 = CV2()
         self.cv2.get_sources()
 
-        # Windows Select Added to Layout
-        self.sources = QComboBox()
-        self.sources.hide()
-        self.sources.addItem('One')
-        self.sources.addItem('Two')
-        self.sources.addItem('Three')
-        self.sources.addItem('Four')
-        self.layout.addWidget(self.sources)
-
         # Show
         self.finishedLoading()
 
     # Finished Loading
     def finishedLoading(self):
         self.label.setText("Welcome to Netizen.")
+
+        # # Windows Select Added to Layout
+        # self.processes = QComboBox()
+        # self.processes.hide()
+        # self.processes.addItem('One')
+        # self.processes.addItem('Two')
+        # self.processes.addItem('Three')
+        # self.processes.addItem('Four')
+        # self.layout.addWidget(self.processes)
+
+        # # Video Select Added to Layout
+        # self.sources = QComboBox()
+        # self.sources.hide()
+        # self.sources.addItem('One')
+        # self.sources.addItem('Two')
+        # self.sources.addItem('Three')
+        # self.sources.addItem('Four')
+        # self.layout.addWidget(self.sources)
+
         self.startStopButton.show()
-        self.processes.show()
+        # self.sources.show()
+        # self.processes.show()
 
     def bootstrapUI(self):
         self.setWindowTitle("Netizen")
