@@ -107,9 +107,13 @@ class Window(QMainWindow):
         self.processes.change_visible_state(False)
         self.processes.add_select_option('One')
 
-
         # Create Video Sources Select
         self.sources = NetizenSelect("Select Video Source")
+        self.sources.change_visible_state(False)
+        self.sources.add_select_option('One')
+
+        # Create AI Program Select
+        self.sources = NetizenSelect("Select AI Program")
         self.sources.change_visible_state(False)
         self.sources.add_select_option('One')
 
