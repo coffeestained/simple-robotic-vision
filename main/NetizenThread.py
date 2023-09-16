@@ -15,7 +15,7 @@ class NetizenThread(QRunnable):
     @pyqtSlot()
     def run(self):
         '''
-        Your code goes in this function
+        Work thread run
         '''
         print("Thread start")
         print(self.callback)

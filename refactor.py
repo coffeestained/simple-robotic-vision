@@ -10,11 +10,12 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QComboBox,
 )
 
 from main.NetizenThread import NetizenThread
-
-from utils.utils import WindowsOS
+from main.Windows import WindowsOS
+from main.CV2 import CV2
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -28,15 +29,25 @@ class Window(QMainWindow):
         self.bootstrapUI()
 
     def bootstrapThreading(self):
+        """
+        Initiates thread pool and required bootstrapped threads
+        """
         self.bootstrapThreadpool()
         self.bootstrapRunnable(lambda: self.bootstrapWindowsOS())
+        self.bootstrapRunnable(lambda: self.bootstrapCV2())
 
     # Bootstrap Thread
     def bootstrapThreadpool(self):
+        """
+        Assigns thread pool
+        """
         self.threadpool = QThreadPool.globalInstance()
 
     # Netizen Event Runnable
     def bootstrapRunnable(self, callback = None):
+        """
+        A custom runnable thread with optional callback.
+        """
         if callback:
             thread = NetizenThread(callback)
             self.threadpool.start(thread)
@@ -45,13 +56,49 @@ class Window(QMainWindow):
 
     # Bootstrap Windows Processes
     def bootstrapWindowsOS(self):
+        """
+        Utilizes core windows class and gathers required data.
+        """
         self.windows = WindowsOS()
         self.windows.get_processes()
+
+        # Windows Select Added to Layout
+        self.processes = QComboBox()
+        self.processes.hide()
+        self.processes.addItem('One')
+        self.processes.addItem('Two')
+        self.processes.addItem('Three')
+        self.processes.addItem('Four')
+        self.layout.addWidget(self.processes)
+
+        # Show
+        self.finishedLoading()
+
+    # Bootstrap CV2 Class
+    def bootstrapCV2(self):
+        """
+        Utilizes core cv2 class and gathers required data.
+        """
+        self.cv2 = CV2()
+        self.cv2.get_sources()
+
+        # Windows Select Added to Layout
+        self.sources = QComboBox()
+        self.sources.hide()
+        self.sources.addItem('One')
+        self.sources.addItem('Two')
+        self.sources.addItem('Three')
+        self.sources.addItem('Four')
+        self.layout.addWidget(self.sources)
+
+        # Show
         self.finishedLoading()
 
     # Finished Loading
     def finishedLoading(self):
         self.label.setText("Welcome to Netizen.")
+        self.startStopButton.show()
+        self.processes.show()
 
     def bootstrapUI(self):
         self.setWindowTitle("Netizen")
@@ -65,12 +112,12 @@ class Window(QMainWindow):
 
         # Create Start Stop Button
         self.startStopButton = QPushButton("Start")
+        self.startStopButton.hide()
         self.startStopButton.clicked.connect(lambda: self.bootstrapRunnable(self.toggleStartStop))
 
         # Create Layout
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.label)
-        self.layout.addWidget(self.startStopButton)
 
         # Set Layout
         self.centralWidget.setLayout(self.layout)
