@@ -31,6 +31,10 @@ class NetizenSelect(QFrame):
         else:
             self.hide()
 
-    def add_select_option(self, label):
-        self.select.addItem(label)
+    def add_select_option(self, label, user_data = None):
+        self.select.addItem(label, userData = user_data)
+
+    def set_callback(self, callback):
+        print(callback)
+        self.select.currentIndexChanged.connect(callback)
 

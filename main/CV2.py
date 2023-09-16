@@ -24,19 +24,21 @@ class CV2():
                 non_working_sources.append(dev_port)
                 print("Port %s is not working." %dev_port)
             else:
+                print(camera)
                 is_reading, img = camera.read()
                 w = camera.get(3)
                 h = camera.get(4)
                 if is_reading:
                     print("Port %s is working and reads images (%s x %s)" %(dev_port,h,w))
-                    working_sources.append(dev_port)
+                    working_sources.append((dev_port, h, w))
                 else:
                     print("Port %s for camera ( %s x %s) is present but does not reads." %(dev_port,h,w))
-                    available_sources.append(dev_port)
+                    available_sources.append((dev_port, h, w))
             dev_port += 1
         print(available_sources)
         return available_sources, working_sources, non_working_sources
 
-
-
+    def set_active_port(self, port):
+        print(port)
+        self.active_port = port
 
