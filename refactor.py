@@ -126,7 +126,7 @@ class Window(QMainWindow):
         self.sources.add_select_option('One')
 
         # Create AI Program Select
-        self.sources = NetizenSelect("Select AI Program")
+        self.programs = NetizenSelect("Select AI Program")
         self.sources.change_visible_state(False)
         self.sources.add_select_option('One')
 
@@ -141,8 +141,10 @@ class Window(QMainWindow):
         self.central_widget.setLayout(self.layout)
 
     def set_source(self, source):
+        """
+        Set Application State Source (Camera Feed)
+        """
         applicationState.source = source
-
 
     def toggle_start_stop(self):
         """
@@ -152,20 +154,6 @@ class Window(QMainWindow):
             self.start_stop_button.setText("Stop")
         else:
             self.start_stop_button.setText("Start")
-
-    def something_happened(self):
-        print('test')
-
-
-class State(object):
-    """
-    State Store
-    """
-    def __init__(self):
-        self.selected_source = None
-        self.selected_program = None
-        # TODOs
-
 
 applicationState = ApplicationState()
 

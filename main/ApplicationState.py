@@ -5,10 +5,12 @@ class ApplicationState(object):
     """
     _observer_callbacks = {
         'source': [],
-        'program': []
+        'program': [],
+        'active_frame': []
     }
     _source = None
     _program = None
+    _active_frame = None
 
     def __new__(cls):
         if not hasattr(cls, 'instance'):
@@ -32,6 +34,15 @@ class ApplicationState(object):
     def program(self, current):
         self._program = current
         self._notify_observers("program", current)
+
+    @property
+    def active_frame(self):
+        return self._active_frame
+
+    @active_frame.setter
+    def active_frame(self, current):
+        self._active_frame = current
+        self._notify_observers("active_frame", current)
 
     def _notify_observers(self, prop, current):
         """
