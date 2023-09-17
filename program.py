@@ -1,6 +1,11 @@
 import logging
 import signal
 import sys
+import os
+
+# ENV
+from dotenv import load_dotenv
+load_dotenv()
 
 from PyQt5.QtCore import Qt, QThreadPool
 from PyQt5.QtWidgets import (
@@ -15,6 +20,7 @@ from PyQt5.QtWidgets import (
 
 from main.ApplicationState import ApplicationState
 from main.InspectorWindow import InspectorWindow
+from main.DevWindow import DevWindow
 from main.NetizenThread import NetizenThread
 from main.NetizenComponents import NetizenSelect
 from main.Windows import WindowsOS
@@ -22,6 +28,8 @@ from main.CV2 import CV2
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+configuration = os.getenv('CONFIGURATION')
 
 app = QApplication(sys.argv)
 
@@ -118,17 +126,14 @@ class Window(QMainWindow):
         # Create Processes Select
         self.processes = NetizenSelect("Select Proccess")
         self.processes.change_visible_state(False)
-        self.processes.add_select_option('One')
 
         # Create Video Sources Select
         self.sources = NetizenSelect("Select Video Source")
         self.sources.change_visible_state(False)
-        self.sources.add_select_option('One')
 
         # Create AI Program Select
         self.programs = NetizenSelect("Select AI Program")
         self.sources.change_visible_state(False)
-        self.sources.add_select_option('One')
 
         # Create Layout
         self.layout = QVBoxLayout()
@@ -162,6 +167,10 @@ window.show()
 
 inspectorWindow = InspectorWindow()
 inspectorWindow.show()
+
+if configuration == "dev":
+    devWindow = DevWindow()
+    devWindow.show()
 
 sys.exit(app.exec())
 

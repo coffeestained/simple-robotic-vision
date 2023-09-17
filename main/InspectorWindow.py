@@ -28,8 +28,10 @@ class InspectorWindow(QMainWindow):
         self.dimensions = dimensions
         self.setWindowTitle("Inspector")
         self.resize(QSize(*dimensions))
-        self.canvas = QTCanvas(self, width=10, height=8, dpi=100)
+        self.canvas = QTCanvas(self, width=1, height=1, dpi=50)
         self.axe = self.canvas.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
+        self.axe.axes.get_xaxis().set_visible(False)
+        self.axe.axes.get_yaxis().set_visible(False)
         self.setCentralWidget(self.canvas)
         self.register_listeners()
 
@@ -48,18 +50,16 @@ class InspectorWindow(QMainWindow):
         if callback:
             thread = NetizenThread(callback)
             self.threadpool.start(thread)
-        else:
-            print('Skipping event. No callback.')
 
     def process_frame(self, frame):
+        print(self.axe)
+        self.axe.clear()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
         self.canvas.draw_idle()
-        print(frame)
-
 
 class QTCanvas(FigureCanvasQTAgg):
 
-    def __init__(self, parent=None, width=6, height=4, dpi=100):
+    def __init__(self, parent=None, width=1, height=1, dpi=100):
         figure = pyplot.Figure(figsize=(width, height), dpi=dpi)
         figure.patch.set_alpha(0.0)
         self.axes = figure

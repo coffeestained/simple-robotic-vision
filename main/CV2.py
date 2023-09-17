@@ -29,43 +29,43 @@ class CV2():
             camera = cv2.VideoCapture(dev_port)
             if not camera.isOpened():
                 non_working_sources.append(dev_port)
-                print("Port %s is not working." %dev_port)
             else:
-                print(camera)
                 is_reading, img = camera.read()
                 w = camera.get(3)
                 h = camera.get(4)
                 if is_reading:
-                    print("Port %s is working and reads images (%s x %s)" %(dev_port,h,w))
                     working_sources.append((dev_port, h, w))
                 else:
-                    print("Port %s for camera ( %s x %s) is present but does not reads." %(dev_port,h,w))
                     available_sources.append((dev_port, h, w))
             dev_port += 1
-        print(available_sources)
         return available_sources, working_sources, non_working_sources
 
     def set_active_port(self, port):
         """
         Is triggered when ApplicationState webcam selection changes
         """
-        print("Active Port Changed %s", port)
         self.active_port = port
 
-        # Cancel Current ThreadWorker if active
+        # Update Source If Already Running
         if getattr(self, "current_vision_worker", None):
-            self.current_vision_worker.active = False
-            if self.current_vision_thread.isFinished() or self.current_vision_thread.isRunning():
-                self.current_vision_thread.exit()
-                self.current_vision_thread.wait()
+            self.current_vision_worker.source = self.active_port
+            self.current_vision_worker.load_capture_source()
+        else:
+            # Generate New Thread & Worker
+            self.current_vision_thread = QThread()
+            self.current_vision_worker = VisionWorker()
+            self.current_vision_worker.source = self.active_port
+            self.current_vision_worker.load_capture_source()
+            self.current_vision_worker.moveToThread(self.current_vision_thread)
+            self.current_vision_thread.started.connect(self.current_vision_worker.vision_task)
+            self.current_vision_thread.start()
 
-        # Generate New Thread & Worker
-        self.current_vision_thread = QThread()
-        self.current_vision_worker = VisionWorker()
-        self.current_vision_worker.source = self.active_port
-        self.current_vision_worker.moveToThread(self.current_vision_thread)
-        self.current_vision_thread.started.connect(self.current_vision_worker.vision_task)
-        self.current_vision_thread.start()
+    def set_active_program(self, program):
+        """
+        Sets the active program & loads the program .. must have source loaded
+        """
+        if getattr(self, "current_vision_worker", None):
+            self.current_vision_worker.program = program
 
 
 # Step 1: Create a worker class
@@ -75,16 +75,19 @@ class VisionWorker(QObject):
     source = None
     active = True
 
+    def load_capture_source(self):
+        self.cap = cv2.VideoCapture(self.source)
+
+    def load_program(self):
+        self.cap = cv2.VideoCapture(self.source)
+
     def vision_task(self):
         """continuous-running task."""
-        cap = cv2.VideoCapture(self.source)
         while self.active:
-            time.sleep((1 / 4)) # quarter of a second
-            _, frame = cap.read()
+            time.sleep((1/10)) # quarter of a second
+            _, frame = self.cap.read()
             application_state.active_frame = frame
-            print(" vision tick ")
-        print('done')
-        cap.release()
+        self.cap.release()
         self.finished.emit()
 
 
