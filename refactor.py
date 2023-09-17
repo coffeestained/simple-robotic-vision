@@ -44,7 +44,7 @@ class Window(QMainWindow):
     # Bootstrap Thread
     def bootstrap_threadpool(self):
         """
-        Assigns thread pool
+        Creates thread pool
         """
         self.threadpool = QThreadPool.globalInstance()
 

@@ -35,6 +35,5 @@ class NetizenSelect(QFrame):
         self.select.addItem(label, userData = user_data)
 
     def set_callback(self, callback):
-        print(callback)
         self.select.currentIndexChanged.connect(callback)
 

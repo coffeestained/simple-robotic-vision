@@ -1,9 +1,13 @@
 import cv2
 
+from main.ApplicationState import ApplicationState
+
 class CV2():
+    application_state = ApplicationState()
 
     def __init__(self):
         super().__init__()
+        self.application_state.register_callback("source", self.set_active_port)
         (
             self.available_sources,
             self.working_sources,
@@ -39,6 +43,6 @@ class CV2():
         return available_sources, working_sources, non_working_sources
 
     def set_active_port(self, port):
-        print(port)
+        print("Active Port Changed %s", port)
         self.active_port = port
 
