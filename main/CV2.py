@@ -54,18 +54,18 @@ class CV2():
 
         # Cancel Current ThreadWorker if active
         if getattr(self, "current_vision_worker", None):
-            self.current_vision_worker.active = False
-            if self.current_vision_thread.isFinished() or self.current_vision_thread.isRunning():
-                self.current_vision_thread.exit()
-                self.current_vision_thread.wait()
-
-        # Generate New Thread & Worker
-        self.current_vision_thread = QThread()
-        self.current_vision_worker = VisionWorker()
-        self.current_vision_worker.source = self.active_port
-        self.current_vision_worker.moveToThread(self.current_vision_thread)
-        self.current_vision_thread.started.connect(self.current_vision_worker.vision_task)
-        self.current_vision_thread.start()
+            if self.current_vision_thread.isRunning():
+                self.current_vision_worker.source = self.active_port
+                self.current_vision_worker.generate_capture_source()
+        else:
+            # Generate New Thread & Worker
+            self.current_vision_thread = QThread()
+            self.current_vision_worker = VisionWorker()
+            self.current_vision_worker.source = self.active_port
+            self.current_vision_worker.generate_capture_source()
+            self.current_vision_worker.moveToThread(self.current_vision_thread)
+            self.current_vision_thread.started.connect(self.current_vision_worker.vision_task)
+            self.current_vision_thread.start()
 
 
 # Step 1: Create a worker class
@@ -75,16 +75,18 @@ class VisionWorker(QObject):
     source = None
     active = True
 
+    def generate_capture_source(self):
+        self.cap = cv2.VideoCapture(self.source)
+
     def vision_task(self):
         """continuous-running task."""
-        cap = cv2.VideoCapture(self.source)
         while self.active:
-            time.sleep((1 / 4)) # quarter of a second
-            _, frame = cap.read()
+            time.sleep((1/10)) # quarter of a second
+            _, frame = self.cap.read()
             application_state.active_frame = frame
             print(" vision tick ")
         print('done')
-        cap.release()
+        self.cap.release()
         self.finished.emit()
 
 

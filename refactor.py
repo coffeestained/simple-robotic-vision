@@ -118,17 +118,14 @@ class Window(QMainWindow):
         # Create Processes Select
         self.processes = NetizenSelect("Select Proccess")
         self.processes.change_visible_state(False)
-        self.processes.add_select_option('One')
 
         # Create Video Sources Select
         self.sources = NetizenSelect("Select Video Source")
         self.sources.change_visible_state(False)
-        self.sources.add_select_option('One')
 
         # Create AI Program Select
         self.programs = NetizenSelect("Select AI Program")
         self.sources.change_visible_state(False)
-        self.sources.add_select_option('One')
 
         # Create Layout
         self.layout = QVBoxLayout()

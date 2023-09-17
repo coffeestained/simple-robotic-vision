@@ -52,6 +52,7 @@ class InspectorWindow(QMainWindow):
             print('Skipping event. No callback.')
 
     def process_frame(self, frame):
+        self.axe.clear()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
         self.canvas.draw_idle()
         print(frame)
