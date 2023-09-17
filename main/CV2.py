@@ -67,6 +67,8 @@ class CV2():
             self.current_vision_thread.started.connect(self.current_vision_worker.vision_task)
             self.current_vision_thread.start()
 
+    def set_active_program(self, port):
+
 
 # Step 1: Create a worker class
 class VisionWorker(QObject):
