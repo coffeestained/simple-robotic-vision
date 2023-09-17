@@ -17,7 +17,4 @@ class NetizenThread(QRunnable):
         '''
         Work thread run
         '''
-        print("Thread start")
-        print(self.callback)
         self.callback()
-        print("Thread complete")
