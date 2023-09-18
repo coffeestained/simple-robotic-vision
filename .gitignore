@@ -1,3 +1,4 @@
 .env
 __pycache__
-/programs
+programs/*
+!programs/base.py
