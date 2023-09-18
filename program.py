@@ -25,6 +25,7 @@ from main.NetizenThread import NetizenThread
 from main.NetizenComponents import NetizenSelect
 from main.Windows import WindowsOS
 from main.CV2 import CV2
+from programs.example_program import Program
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
