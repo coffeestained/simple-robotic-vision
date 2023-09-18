@@ -18,13 +18,14 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 
-from main.ApplicationState import ApplicationState
-from main.InspectorWindow import InspectorWindow
-from main.DevWindow import DevWindow
-from main.NetizenThread import NetizenThread
-from main.NetizenComponents import NetizenSelect
-from main.Windows import WindowsOS
-from main.CV2 import CV2
+from core.ApplicationState import ApplicationState
+from core.InspectorWindow import InspectorWindow
+from core.DevWindow import DevWindow
+from core.NetizenThread import NetizenThread
+from core.NetizenComponents import NetizenSelect
+from core.Windows import WindowsOS
+from core.CV2 import CV2
+from programs.example_program.main import Program
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -38,6 +39,7 @@ class Window(QMainWindow):
         super().__init__()
         self.bootstrap_threading()
         self.bootstrap_ui()
+        Program()
 
     def bootstrap_threading(self):
         """
