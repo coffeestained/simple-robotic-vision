@@ -2,8 +2,8 @@ import logging
 import signal
 import sys
 
-from main.NetizenThread import NetizenThread
-from main.ApplicationState import ApplicationState
+from core.NetizenThread import NetizenThread
+from core.ApplicationState import ApplicationState
 
 import numpy as np
 

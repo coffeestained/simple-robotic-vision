@@ -15,10 +15,10 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 
-from main.ApplicationState import ApplicationState
-from main.NetizenThread import NetizenThread
-from main.NetizenComponents import NetizenSelect
-from main.CV2 import CV2
+from core.ApplicationState import ApplicationState
+from core.NetizenThread import NetizenThread
+from core.NetizenComponents import NetizenSelect
+from core.CV2 import CV2
 from utils.utils import move_mouse
 
 class DevWindow(QMainWindow):

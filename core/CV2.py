@@ -1,8 +1,8 @@
 import cv2, time
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
-from main.ApplicationState import ApplicationState
-from main.NetizenThread import NetizenThread
+from core.ApplicationState import ApplicationState
+from core.NetizenThread import NetizenThread
 
 application_state = ApplicationState()
 

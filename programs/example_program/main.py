@@ -5,7 +5,8 @@ class Program(BaseProgram):
     An example program that adds a priority 0 and 1 job.
     It checks if it's valid and then executes the job.
     """
-    def __init__():
+    def __init__(self):
+        super().__init__()
         # Register Job One with Higher Prio
         self.jobs = (
             self.job_one_is_valid,
@@ -20,14 +21,14 @@ class Program(BaseProgram):
         )
         self.start_program()
 
-    def job_one_is_valid():
+    def job_one_is_valid(self):
         return False
 
-    def job_two_is_valid():
+    def job_two_is_valid(self):
         return True
 
-    def job_one():
+    def job_one(self):
         print('One Triggered')
 
-    def job_two():
+    def job_two(self):
         print("Two Triggered")
