@@ -52,7 +52,6 @@ class InspectorWindow(QMainWindow):
             self.threadpool.start(thread)
 
     def process_frame(self, frame):
-        print(self.axe)
         self.axe.clear()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
         self.canvas.draw_idle()

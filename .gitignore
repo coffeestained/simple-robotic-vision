@@ -2,3 +2,4 @@
 __pycache__
 programs/*
 !programs/base.py
+*.pyc
