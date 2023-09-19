@@ -2,6 +2,7 @@ import logging
 import signal
 import sys
 import os
+from pynput.keyboard import Key, Listener
 
 # ENV
 from dotenv import load_dotenv
@@ -27,9 +28,19 @@ from core.Windows import WindowsOS
 from core.CV2 import CV2
 from programs.example_program.main import Program
 
+# Logging
 logging.basicConfig(format="%(message)s", level=logging.INFO)
-signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+# Closing program
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+def on_press(key):
+    pass
+def on_release(key):
+    if key == Key.esc:
+        os._exit(1)
+        return signal.SIGINT
+
+# Env
 configuration = os.getenv('CONFIGURATION')
 
 app = QApplication(sys.argv)
@@ -47,9 +58,14 @@ class Window(QMainWindow):
         """
         self.bootstrap_threadpool()
         self.bootstrap_runnable(lambda: self.bootstrap_cv2())
-
+        self.bootstrap_runnable(lambda: self.bootstrap_listener())
         # Windows processes unneeded for now
         #self.bootstrap_runnable(lambda: self.bootstrap_windows_os())
+
+    # Bootstrap Listener for keys
+    def bootstrap_listener(self):
+        with Listener(on_press=on_press, on_release=on_release) as listener:
+            listener.join()
 
     # Bootstrap Thread
     def bootstrap_threadpool(self):

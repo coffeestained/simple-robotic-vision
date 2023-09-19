@@ -1,15 +1,18 @@
 import random
+import math
+import pyautogui
+import pytweening
+import numpy as np
+import random
+import time
 
 from pyHM import mouse
-
 
 '''
     Human Movement Utils Below
 '''
-def move_mouse(target):
-    """
-    Human like mouse movement start -- TODO Train Model and refactor.
-    """
+def move_mouse(
+    target,
     kwargs = {
        "offsetBoundaryX":  random.randint(75, 125),
        "offsetBoundaryY":  random.randint(75, 125),
@@ -19,9 +22,37 @@ def move_mouse(target):
        "distortionFrequency": (random.randint(900, 1100) / 2000),
        "targetPoints":  random.randint(70, 130),
        "tween": pytweening.easeOutQuad
-    }
-    speed_random = (random.randint(25000, 38000) / 100000)
-    hc.move(target, speed_random, HumanCurve(pyautogui.position(), target, **kwargs))
+    },
+    speed_random = (random.randint(25000, 38000) / 100000),
+    threshold = 60
+):
+    """
+    Human like mouse movement start -- TODO Train Model and refactor.
+    """
+    extra_randomization_trigger = random.randint(random.randint(0, 100), 100) > threshold
+    print(extra_randomization_trigger, random.randint(random.randint(0, 100), 100))
+
+    if extra_randomization_trigger == False:
+        wrong_target = (target[0] + (random.randint(-27, 27)), target[1] + (random.randint(-27, 27)))
+        hc.move(wrong_target, speed_random, HumanCurve(pyautogui.position(), wrong_target, **kwargs)) # Wrong Move
+        time.sleep(random.randint(100, 700) / 1000)
+        move_mouse(
+            target,
+            {
+                "offsetBoundaryX":  random.randint(75, 125),
+                "offsetBoundaryY":  random.randint(75, 125),
+                "knotsCount":  random.randint(0, 1),
+                "distortionMean":  (random.randint(900, 1100) / 1000),
+                "distortionStdev":  (random.randint(900, 1100) / 1000),
+                "distortionFrequency": (random.randint(900, 1100) / 2000),
+                "targetPoints":  random.randint(70, 130),
+                "tween": pytweening.easeOutQuad
+            },
+            (random.randint(4000, 11000) / 100000),
+            threshold - 10
+        ) # Try again
+    else:
+        hc.move(target, speed_random, HumanCurve(pyautogui.position(), target, **kwargs))
 
 """
 Type Utils
@@ -37,11 +68,6 @@ def isListOfPoints(l):
         return all(map(isPoint, l))
     except (KeyError, TypeError) as e:
         return False
-
-"""
-Classes For Utils
-"""
-import math
 
 class BezierCurve():
     @staticmethod
@@ -83,7 +109,7 @@ class BezierCurve():
             curvePoints += bernstein_polynomial(t),
         return curvePoints
 
-import pyautogui
+
 
 def setup_pyautogui():
     # Any duration less than this is rounded to 0.0 to instantly move the mouse.
@@ -111,9 +137,7 @@ class HumanClicker():
     def click(self):
         pyautogui.click()
 
-import pytweening
-import numpy as np
-import random
+
 
 class HumanCurve():
     """
