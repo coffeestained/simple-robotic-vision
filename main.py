@@ -34,8 +34,7 @@ logging.basicConfig(format="%(message)s", level=logging.INFO)
 # Closing program
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 def on_press(key):
-    print(key)
-
+    pass
 def on_release(key):
     if key == Key.esc:
         os._exit(1)
