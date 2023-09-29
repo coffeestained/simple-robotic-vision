@@ -1,9 +1,85 @@
-from utils.utils import move_mouse
+import time
 
-class ProgramAPI():
+from PyQt5.QtCore import QThreadPool
 
-    def move_mouse(self, target):
-        move_mouse(target)
+from core.NetizenThread import NetizenThread
+
+from utils.utils import mouse_move, mouse_click
+
+class ActionQueue(list):
+
+    def __setitem__(self, key, value):
+        super(ActionQueue, self).__setitem__(key, value)
+        print("Item added to queue.")
+
+    def __delitem__(self, value):
+        super(ActionQueue, self).__delitem__(value)
+        print("Item removed from queue.")
+
+    def __add__(self, value):
+        super(ActionQueue, self).__add__(value)
+        print("Item added to queue.")
+
+    def __iadd__(self, value):
+        super(ActionQueue, self).__iadd__(value)
+        print("Item added to queue.")
+
+    def append(self, value):
+        super(ActionQueue, self).append(value)
+        print("Item added to queue.")
+
+    def remove(self, value):
+        super(ActionQueue, self).remove(value)
+        print("Item removed from queue.")
+
+class ProgramAPI(object):
+
+    _action_queue = ActionQueue()
+
+    def __new__(cls):
+        """Singleton pattern service
+        """
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(ProgramAPI, cls).__new__(cls)
+        return cls.instance
+
+    def __init__(self):
+        self.bootstrap_threadpool()
+        self.bootstrap_action_listener(self.action_listener)
+
+    # Bootstrap Thread
+    def bootstrap_threadpool(self):
+        """
+        Creates thread pool
+        """
+        self.threadpool = QThreadPool.globalInstance()
+
+    # Netizen Event Runnable
+    def bootstrap_action_listener(self, callback = None):
+        """
+        A custom runnable thread with optional callback.
+        """
+        if callback:
+            thread = NetizenThread(callback)
+            self.threadpool.start(thread)
+        else:
+            print('Skipping event. No callback.')
+
+    def action_listener(self):
+        """
+        While action queue has length, do action and pop.
+        """
+        while True:
+            time.sleep(.1)
+            if len(self._action_queue) > 0:
+                print('Do received action')
+                self._action_queue.pop(0)()
+
+    def mouse_move(self, target):
+        self._action_queue.append(lambda: mouse_move(target))
+
+    def mouse_click(self, target):
+        self._action_queue.append(lambda: mouse_click(target))
 
     def track_object(self, object):
         # CV2 Start Tracking An Object
@@ -25,10 +101,11 @@ class ProgramAPI():
         None
         # Returns tf
 
-    def left_click_tracked_object(self, objectId):
+    def left_click_tracked_object(self, object_id):
         None
         # Returns bool
 
-    def right_click_tracked_object(self, objectId):
+    def right_click_tracked_object(self, object_id):
         None
         # Returns bool
+

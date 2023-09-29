@@ -6,7 +6,42 @@ from core.NetizenThread import NetizenThread
 
 application_state = ApplicationState()
 
+class ActionQueue(list):
+
+    def __setitem__(self, key, value):
+        super(ActionQueue, self).__setitem__(key, value)
+        print("Item added to queue.")
+
+    def __delitem__(self, value):
+        super(ActionQueue, self).__delitem__(value)
+        print("Item removed from queue.")
+
+    def __add__(self, value):
+        super(ActionQueue, self).__add__(value)
+        print("Item added to queue.")
+
+    def __iadd__(self, value):
+        super(ActionQueue, self).__iadd__(value)
+        print("Item added to queue.")
+
+    def append(self, value):
+        super(ActionQueue, self).append(value)
+        print("Item added to queue.")
+
+    def remove(self, value):
+        super(ActionQueue, self).remove(value)
+        print("Item removed from queue.")
+
 class CV2():
+
+    _action_queue = ActionQueue()
+
+    def __new__(cls):
+        """Singleton pattern service
+        """
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(CV2, cls).__new__(cls)
+        return cls.instance
 
     def __init__(self):
         super().__init__()
@@ -30,7 +65,7 @@ class CV2():
             if not camera.isOpened():
                 non_working_sources.append(dev_port)
             else:
-                is_reading, img = camera.read()
+                is_reading, _ = camera.read()
                 w = camera.get(3)
                 h = camera.get(4)
                 if is_reading:
@@ -67,11 +102,8 @@ class CV2():
         if getattr(self, "current_vision_worker", None):
             self.current_vision_worker.program = program
 
-
 # Step 1: Create a worker class
 class VisionWorker(QObject):
-    finished = pyqtSignal()
-    progress = pyqtSignal(int)
     source = None
     active = True
 
@@ -88,6 +120,14 @@ class VisionWorker(QObject):
             _, frame = self.cap.read()
             application_state.active_frame = frame
         self.cap.release()
-        self.finished.emit()
 
 
+
+"""CV2 Utils"""
+def match_template(source, template):
+    res = cv2.matchTemplate(source, template, cv2.TM_CCOEFF_NORMED)
+    threshold = .8
+    loc = np.where(res >= threshold)
+    for pt in zip(*loc[::-1]):
+        cv2.rectangle(source, pt, (pt[0] + w, pt[1] + h), (0, 0, 255), 2)
+    return source

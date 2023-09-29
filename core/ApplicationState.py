@@ -13,6 +13,8 @@ class ApplicationState(object):
     _active_frame = None
 
     def __new__(cls):
+        """Singleton pattern service
+        """
         if not hasattr(cls, 'instance'):
             cls.instance = super(ApplicationState, cls).__new__(cls)
         return cls.instance
