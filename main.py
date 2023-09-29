@@ -50,7 +50,7 @@ class Window(QMainWindow):
         super().__init__()
         self.bootstrap_threading()
         self.bootstrap_ui()
-        Program()
+        #Program()
 
     def bootstrap_threading(self):
         """

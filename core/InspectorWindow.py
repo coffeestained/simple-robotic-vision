@@ -55,6 +55,7 @@ class InspectorWindow(QMainWindow):
         self.axe.clear()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
         self.canvas.draw_idle()
+        self.canvas.flush_events()
 
 class QTCanvas(FigureCanvasQTAgg):
 
