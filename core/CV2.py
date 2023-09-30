@@ -33,6 +33,14 @@ class ActionQueue(list):
         print("Item removed from queue.")
 
 class CV2():
+    """
+    CV2 State Store
+    """
+    _observer_callbacks = {
+        'tracked_objects': [],
+        'tracked_text': [],
+        'active_actions': ActionQueue()
+    }
 
     _action_queue = ActionQueue()
 

@@ -4,7 +4,7 @@ from PyQt5.QtCore import QThreadPool
 
 from core.NetizenThread import NetizenThread
 
-from utils.utils import mouse_move, mouse_click
+from utils.mouse import mouse_move, mouse_click
 
 class ActionQueue(list):
 

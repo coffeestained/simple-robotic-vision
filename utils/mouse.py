@@ -75,9 +75,15 @@ def mouse_click(
     Human like mouse movement start -- TODO Train model and refactor.
     """
     speed_random = (random.randint(9111, 19666) / 100000)
-    hc.move(target, speed_random, HumanCurve(pyautogui.position(), target, **kwargs))
+
     pyautogui.mouseDown(button=button)
-    time.sleep((random.randint(49, 249) / 10000))
+    extra_randomization_trigger = random.randint(random.randint(0, 100), 100) > 60
+    if extra_randomization_trigger:
+        new_target = (target[0] + random.randint(-3, 3), target[1] + random.randint(-3, 3))
+        hc.move(new_target, (random.randint(69, 249) / 100000), HumanCurve(pyautogui.position(), new_target, **kwargs))
+        time.sleep((random.randint(249, 299) / 100000))
+    hc.move(target, (random.randint(229, 379) / 100000), HumanCurve(pyautogui.position(), target, **kwargs))
+    time.sleep((random.randint(29, 129) / 100000))
     pyautogui.mouseUp(button=button)
 
 
