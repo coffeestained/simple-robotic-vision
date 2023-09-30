@@ -6,35 +6,13 @@ from core.NetizenThread import NetizenThread
 
 application_state = ApplicationState()
 
-class ActionQueue(list):
-
-    def __setitem__(self, key, value):
-        super(ActionQueue, self).__setitem__(key, value)
-        print("Item added to queue.")
-
-    def __delitem__(self, value):
-        super(ActionQueue, self).__delitem__(value)
-        print("Item removed from queue.")
-
-    def __add__(self, value):
-        super(ActionQueue, self).__add__(value)
-        print("Item added to queue.")
-
-    def __iadd__(self, value):
-        super(ActionQueue, self).__iadd__(value)
-        print("Item added to queue.")
-
-    def append(self, value):
-        super(ActionQueue, self).append(value)
-        print("Item added to queue.")
-
-    def remove(self, value):
-        super(ActionQueue, self).remove(value)
-        print("Item removed from queue.")
-
 class CV2():
-
-    _action_queue = ActionQueue()
+    """
+    CV2 State Store
+    """
+    tracked_objects = []
+    tracked_text = []
+    active_actions = []
 
     def __new__(cls):
         """Singleton pattern service
@@ -46,6 +24,7 @@ class CV2():
     def __init__(self):
         super().__init__()
         application_state.register_callback("source", self.set_active_port)
+        application_state.register_callback("active_frame", self.do_actions)
         (
             self.available_sources,
             self.working_sources,
@@ -102,9 +81,18 @@ class CV2():
         if getattr(self, "current_vision_worker", None):
             self.current_vision_worker.program = program
 
+    def do_actions(self, frame):
+        """
+        Active frame changed, checking active actions
+        """
+        if getattr(self, "current_vision_worker", None):
+            for action in self.active_actions:
+                print(action)
+
 # Step 1: Create a worker class
 class VisionWorker(QObject):
     source = None
+    actions_list = []
     active = True
 
     def load_capture_source(self):
@@ -122,12 +110,3 @@ class VisionWorker(QObject):
         self.cap.release()
 
 
-
-"""CV2 Utils"""
-def match_template(source, template):
-    res = cv2.matchTemplate(source, template, cv2.TM_CCOEFF_NORMED)
-    threshold = .8
-    loc = np.where(res >= threshold)
-    for pt in zip(*loc[::-1]):
-        cv2.rectangle(source, pt, (pt[0] + w, pt[1] + h), (0, 0, 255), 2)
-    return source
