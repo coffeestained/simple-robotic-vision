@@ -74,8 +74,6 @@ def mouse_click(
     """
     Human like mouse movement start -- TODO Train model and refactor.
     """
-    speed_random = (random.randint(9111, 19666) / 100000)
-
     pyautogui.mouseDown(button=button)
     extra_randomization_trigger = random.randint(random.randint(0, 100), 100) > 60
     if extra_randomization_trigger:

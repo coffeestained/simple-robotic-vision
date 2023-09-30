@@ -18,9 +18,9 @@ from PyQt5.QtWidgets import (
 )
 
 from core.ApplicationState import ApplicationState
-from core.NetizenThread import NetizenThread
-from core.NetizenComponents import NetizenSelect
-from core.CV2 import CV2
+from core.threading.NetizenThread import NetizenThread
+from core.ui.NetizenComponents import NetizenSelect
+from core.cv.CV2 import CV2
 from core.ProgramApi import ProgramAPI
 
 program_api = ProgramAPI()

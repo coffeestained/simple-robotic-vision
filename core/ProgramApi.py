@@ -2,7 +2,7 @@ import time
 
 from PyQt5.QtCore import QThreadPool
 
-from core.NetizenThread import NetizenThread
+from core.threading.NetizenThread import NetizenThread
 
 from utils.mouse import mouse_move, mouse_click
 

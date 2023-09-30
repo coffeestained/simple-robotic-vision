@@ -20,12 +20,12 @@ from PyQt5.QtWidgets import (
 )
 
 from core.ApplicationState import ApplicationState
-from core.InspectorWindow import InspectorWindow
-from core.DevWindow import DevWindow
-from core.NetizenThread import NetizenThread
-from core.NetizenComponents import NetizenSelect
-from core.Windows import WindowsOS
-from core.CV2 import CV2
+from core.ui.InspectorWindow import InspectorWindow
+from core.ui.DevWindow import DevWindow
+from core.threading.NetizenThread import NetizenThread
+from core.ui.NetizenComponents import NetizenSelect
+from core.os.Windows import WindowsOS
+from core.cv.CV2 import CV2
 from programs.example_program.main import Program
 
 # Logging
