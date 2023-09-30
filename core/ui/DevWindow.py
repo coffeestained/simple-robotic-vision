@@ -94,31 +94,34 @@ class DevWindow(QMainWindow):
         """
         Tests Humanized Mouse Movement
         """
+        speed = (random.randint(25000, 38000) / 100000)
         x = random.randint(0, point[0])
         y = random.randint(0, point[1])
         print("Moving to %s x and %s y" %(x, y), )
-        program_api.mouse_move((x, y))
+        program_api.mouse_move((x, y), speed)
         program_api.mouse_click((x, y))
 
     def track_clipboard_to_object_id(self):
         """
         Tests Computer Vision, Tracks an object if found
         """
+        speed = (random.randint(25000, 38000) / 100000)
         x = random.randint(0, point[0])
         y = random.randint(0, point[1])
         print("Moving to %s x and %s y" %(x, y), )
-        program_api.mouse_move((x, y))
+        program_api.mouse_move((x, y), speed)
         program_api.mouse_click((x, y))
 
     def move_and_click_tracked_object_id(self):
         """
         Tests moving and clicking tracked object
         """
+        speed = (random.randint(25000, 38000) / 100000)
         x = random.randint(0, point[0])
         y = random.randint(0, point[1])
         print("Moving to %s x and %s y" %(x, y), )
-        program_api.mouse_move((x, y))
-        program_api.mouse_click((x, y))
+        program_api.mouse_move((x, y), speed)
+        program_api.mouse_click((x, y), speed)
 
     def bootstrap_listeners(self):
         self.bootstrap_runnable(self.listen_for_clicks)
