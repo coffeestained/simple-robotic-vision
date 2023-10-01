@@ -86,31 +86,31 @@ class ProgramAPI(object):
     def mouse_click(self, target):
         self._action_queue.append(lambda: mouse_click(target=target))
 
-    def track_object(self, object):
+    def object_track(self, template):
         # CV2 Start Tracking An Object
         None
         # returns object id
 
-    def look_for_objects(self, list_of_objects):
-        # Bool if objects exist in camera frame
+    def object_exists(self, template):
+        # Bool if object in frame
         None
-        # Returns tf
+        # returns Bool
 
-    def track_text_as_object(self, text):
+    def text_track(self, text):
         # CV2 + Tesseract
         None
         # returns object id
 
-    def look_for_text(self, look_for_text):
-        # Bool if text exist in camera frame
+    def text_exists(self, text):
+        # Bool if text exist in frame
         None
         # Returns Bool
 
-    def left_click_tracked_object(self, object_id):
+    def left_click_object_id(self, object_id):
         None
         # Returns Bool
 
-    def right_click_tracked_object(self, object_id):
+    def right_click_object_id(self, object_id):
         None
         # Returns Bool
 
