@@ -1,3 +1,6 @@
+"""
+Please forgive this monstrosity, I was learning QT & OpenCV
+"""
 ## Gui Imports
 from PyQt5 import QtCore, QtWidgets, QtGui
 

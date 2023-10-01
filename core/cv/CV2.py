@@ -1,8 +1,10 @@
-import cv2, time
+import cv2, time, numpy as np, copy
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from core.ApplicationState import ApplicationState
 from core.threading.NetizenThread import NetizenThread
+
+from utils.cv2 import format_image
 
 application_state = ApplicationState()
 
@@ -81,6 +83,13 @@ class CV2():
         if getattr(self, "current_vision_worker", None):
             self.current_vision_worker.program = program
 
+    def toggle_layer(self, label, layer):
+        if getattr(self, "current_vision_worker", None):
+            self.current_vision_worker.toggle_layer({
+                "label": label,
+                "expression": layer
+            })
+
     def do_actions(self, frame):
         """
         Active frame changed, checking active actions
@@ -92,8 +101,14 @@ class CV2():
 # Step 1: Create a worker class
 class VisionWorker(QObject):
     source = None
-    actions_list = []
+    _layers = []
     active = True
+
+    def toggle_layer(self, layer):
+        if not any(l['label'] == layer['label'] for l in self._layers):
+            self._layers.append(layer)
+        else:
+            self._layers = list(filter(lambda l: l['label'] == layer, self._layers))
 
     def load_capture_source(self):
         self.cap = cv2.VideoCapture(self.source)
@@ -106,7 +121,17 @@ class VisionWorker(QObject):
         while self.active:
             time.sleep((1/10)) # quarter of a second
             _, frame = self.cap.read()
+            frame = format_image(frame)
+            if isinstance(application_state.previous_frame, np.ndarray):
+                application_state.active_previous_diff = cv2.absdiff(src1=application_state.previous_frame, src2=application_state.active_frame)
+            application_state.previous_frame = application_state.active_frame
             application_state.active_frame = frame
+            inspector_frame = copy.deepcopy(frame)
+            for layer in self._layers:
+                print(layer["expression"])
+                inspector_frame += layer["expression"](application_state.active_previous_diff)
+            application_state.inspector_frame = inspector_frame
+
         self.cap.release()
 
 
