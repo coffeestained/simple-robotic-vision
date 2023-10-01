@@ -1,8 +1,9 @@
 import time
+import random
 
 from PyQt5.QtCore import QThreadPool
 
-from core.NetizenThread import NetizenThread
+from core.threading.NetizenThread import NetizenThread
 
 from utils.mouse import mouse_move, mouse_click
 
@@ -75,11 +76,11 @@ class ProgramAPI(object):
                 print('Do received action')
                 self._action_queue.pop(0)()
 
-    def mouse_move(self, target):
-        self._action_queue.append(lambda: mouse_move(target))
+    def mouse_move(self, target, speed=(random.randint(25000, 38000) / 100000)):
+        self._action_queue.append(lambda: mouse_move(target=target, speed_random=speed))
 
     def mouse_click(self, target):
-        self._action_queue.append(lambda: mouse_click(target))
+        self._action_queue.append(lambda: mouse_click(target=target))
 
     def track_object(self, object):
         # CV2 Start Tracking An Object

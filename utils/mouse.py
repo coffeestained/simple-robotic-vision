@@ -32,8 +32,11 @@ def mouse_move(
     extra_randomization_trigger = random.randint(random.randint(0, 100), 100) > threshold
 
     if extra_randomization_trigger == False:
-        wrong_target = (target[0] + (random.randint(-27, 27)), target[1] + (random.randint(-27, 27)))
-        hc.move(wrong_target, speed_random, HumanCurve(pyautogui.position(), wrong_target, **kwargs)) # Wrong Move
+        x_delta = (random.randint(-27, 27))
+        y_delta = (random.randint(-27, 27))
+        # TODO Scale distance deltas to speeds for consistency
+        wrong_target = (target[0] + x_delta, target[1] + y_delta)
+        hc.move(wrong_target, (random.randint(69, 249) / 100000), HumanCurve(pyautogui.position(), wrong_target, **kwargs)) # Wrong Move
         time.sleep(random.randint(100, 700) / 1000)
         mouse_move(
             target,
@@ -74,8 +77,6 @@ def mouse_click(
     """
     Human like mouse movement start -- TODO Train model and refactor.
     """
-    speed_random = (random.randint(9111, 19666) / 100000)
-
     pyautogui.mouseDown(button=button)
     extra_randomization_trigger = random.randint(random.randint(0, 100), 100) > 60
     if extra_randomization_trigger:
