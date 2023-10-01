@@ -6,10 +6,12 @@ class ApplicationState(object):
     _observer_callbacks = {
         'source': [],
         'program': [],
-        'active_frame': []
+        'active_frame': [],
+        'previous_frame': []
     }
     _source = None
     _program = None
+    _previous_frame = None
     _active_frame = None
 
     def __new__(cls):
@@ -42,9 +44,19 @@ class ApplicationState(object):
         return self._active_frame
 
     @active_frame.setter
-    def active_frame(self, current):
-        self._active_frame = current
-        self._notify_observers("active_frame", current)
+    def active_frame(self, frame):
+        self._previous_frame = self._active_frame
+        self._active_frame = frame
+        self._notify_observers("active_frame", frame)
+
+    @property
+    def previous_frame(self):
+        return self._previous_frame
+
+    @previous_frame.setter
+    def previous_frame(self, frame):
+        self._previous_frame = frame
+        self._notify_observers("previous_frame", frame)
 
     def _notify_observers(self, prop, current):
         """
