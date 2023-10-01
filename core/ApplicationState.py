@@ -5,6 +5,7 @@ class ApplicationState(object):
     _observer_callbacks = {
         'source': [],
         'program': [],
+        'inspector_frame': [],
         'active_frame': [],
         'previous_frame': [],
         'active_previous_diff': []
@@ -13,6 +14,7 @@ class ApplicationState(object):
     _program = None
     _previous_frame = None
     _active_frame = None
+    _inspector_frame = None
     _active_previous_diff = None
 
     def __new__(cls):
@@ -48,6 +50,15 @@ class ApplicationState(object):
     def active_frame(self, frame):
         self._active_frame = frame
         self._notify_observers("active_frame", frame)
+
+    @property
+    def inspector_frame(self):
+        return self._inspector_frame
+
+    @inspector_frame.setter
+    def inspector_frame(self, frame):
+        self._inspector_frame = frame
+        self._notify_observers("inspector_frame", frame)
 
     @property
     def previous_frame(self):

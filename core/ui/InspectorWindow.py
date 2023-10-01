@@ -36,7 +36,7 @@ class InspectorWindow(QMainWindow):
         self.register_listeners()
 
     def register_listeners(self):
-        application_state.register_callback("active_frame", self.new_frame_receiver)
+        application_state.register_callback("inspector_frame", self.new_frame_receiver)
 
     def new_frame_receiver(self, frame):
         if isinstance(frame, np.ndarray):
@@ -54,7 +54,7 @@ class InspectorWindow(QMainWindow):
     def process_frame(self, frame):
         self.axe.cla()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
-        self.canvas.draw()
+        self.canvas.draw_idle()
 
 class QTCanvas(FigureCanvasQTAgg):
 

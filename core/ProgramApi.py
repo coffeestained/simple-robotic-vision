@@ -4,8 +4,12 @@ import random
 from PyQt5.QtCore import QThreadPool
 
 from core.threading.NetizenThread import NetizenThread
+from core.cv.CV2 import CV2
 
 from utils.mouse import mouse_move, mouse_click
+from utils.cv2 import motion_detection
+
+cv2 = CV2()
 
 class ActionQueue(list):
 
@@ -100,13 +104,18 @@ class ProgramAPI(object):
     def look_for_text(self, look_for_text):
         # Bool if text exist in camera frame
         None
-        # Returns tf
+        # Returns Bool
 
     def left_click_tracked_object(self, object_id):
         None
-        # Returns bool
+        # Returns Bool
 
     def right_click_tracked_object(self, object_id):
         None
-        # Returns bool
+        # Returns Bool
+
+    def toggle_motion_detection(self):
+        cv2.toggle_layer("Motion Detection", motion_detection)
+        # Returns Bool
+        return True
 

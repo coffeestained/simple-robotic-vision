@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
 from core.ApplicationState import ApplicationState
 from core.threading.NetizenThread import NetizenThread
 from core.ui.NetizenComponents import NetizenSelect
-from core.cv.CV2 import CV2
 from core.ProgramApi import ProgramAPI
 
 program_api = ProgramAPI()
@@ -78,8 +77,8 @@ class DevWindow(QMainWindow):
         self.find_create.clicked.connect(lambda: self.bootstrap_runnable(self.track_clipboard_to_object_id))
 
         # Toggle Motion Detection
-        self.toggle_motion_detection = QPushButton("Toggle Motion Detection")
-        self.toggle_motion_detection.clicked.connect(lambda: self.bootstrap_runnable(self.track_clipboard_to_object_id))
+        self.toggle_motion_detection_button = QPushButton("Toggle Motion Detection")
+        self.toggle_motion_detection_button.clicked.connect(lambda: self.bootstrap_runnable(self.toggle_motion_detection))
 
         # Finds Tracked Object and Clicks
         self.track_and_click = QPushButton("Click Tracked Image")
@@ -90,7 +89,7 @@ class DevWindow(QMainWindow):
         self.layout.addWidget(self.mouse_movement)
         self.layout.addWidget(self.find_create)
         self.layout.addWidget(self.track_and_click)
-        self.layout.addWidget(self.toggle_motion_detection)
+        self.layout.addWidget(self.toggle_motion_detection_button)
 
         # Set Layout
         self.central_widget.setLayout(self.layout)
@@ -105,6 +104,9 @@ class DevWindow(QMainWindow):
         print("Moving to %s x and %s y" %(x, y), )
         program_api.mouse_move((x, y), speed)
         program_api.mouse_click((x, y))
+
+    def toggle_motion_detection(self):
+        program_api.toggle_motion_detection()
 
     def track_clipboard_to_object_id(self):
         """
