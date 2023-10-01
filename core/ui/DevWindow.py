@@ -77,6 +77,10 @@ class DevWindow(QMainWindow):
         self.find_create = QPushButton("Find, Create Bounding Box and Track / Clipboard Image")
         self.find_create.clicked.connect(lambda: self.bootstrap_runnable(self.track_clipboard_to_object_id))
 
+        # Toggle Motion Detection
+        self.toggle_motion_detection = QPushButton("Toggle Motion Detection")
+        self.toggle_motion_detection.clicked.connect(lambda: self.bootstrap_runnable(self.track_clipboard_to_object_id))
+
         # Finds Tracked Object and Clicks
         self.track_and_click = QPushButton("Click Tracked Image")
         self.track_and_click.clicked.connect(lambda: self.bootstrap_runnable(self.move_and_click_tracked_object_id))
@@ -86,6 +90,7 @@ class DevWindow(QMainWindow):
         self.layout.addWidget(self.mouse_movement)
         self.layout.addWidget(self.find_create)
         self.layout.addWidget(self.track_and_click)
+        self.layout.addWidget(self.toggle_motion_detection)
 
         # Set Layout
         self.central_widget.setLayout(self.layout)

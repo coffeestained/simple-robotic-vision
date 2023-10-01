@@ -29,7 +29,7 @@ class InspectorWindow(QMainWindow):
         self.setWindowTitle("Inspector")
         self.resize(QSize(*dimensions))
         self.canvas = QTCanvas(self, width=1, height=1, dpi=50)
-        self.axe = self.canvas.axes.add_subplot(111, facecolor="none", position=[0, 0, 0, 0])
+        self.axe = self.canvas.axes.add_subplot()
         self.axe.axes.get_xaxis().set_visible(False)
         self.axe.axes.get_yaxis().set_visible(False)
         self.setCentralWidget(self.canvas)
@@ -52,10 +52,9 @@ class InspectorWindow(QMainWindow):
             self.threadpool.start(thread)
 
     def process_frame(self, frame):
-        self.axe.clear()
+        self.axe.cla()
         self.axe.imshow(frame.astype(np.uint8), alpha=1)
-        self.canvas.draw_idle()
-        self.canvas.flush_events()
+        self.canvas.draw()
 
 class QTCanvas(FigureCanvasQTAgg):
 

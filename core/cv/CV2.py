@@ -1,8 +1,10 @@
-import cv2, time
+import cv2, time, numpy as np, copy
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from core.ApplicationState import ApplicationState
 from core.threading.NetizenThread import NetizenThread
+
+from utils.cv2 import format_image
 
 application_state = ApplicationState()
 
@@ -89,10 +91,11 @@ class CV2():
             for action in self.active_actions:
                 print(action)
 
+
 # Step 1: Create a worker class
 class VisionWorker(QObject):
     source = None
-    actions_list = []
+    _layers = []
     active = True
 
     def load_capture_source(self):
@@ -106,7 +109,14 @@ class VisionWorker(QObject):
         while self.active:
             time.sleep((1/10)) # quarter of a second
             _, frame = self.cap.read()
+            frame = format_image(frame)
+            if isinstance(application_state.previous_frame, np.ndarray):
+                application_state.active_previous_diff = cv2.absdiff(src1=application_state.previous_frame, src2=application_state.active_frame)
+            application_state.previous_frame = application_state.active_frame
+            for layer in self._layers:
+                frame += eval(layer)
             application_state.active_frame = frame
+
         self.cap.release()
 
 

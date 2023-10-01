@@ -1,6 +1,3 @@
-import cv2
-import numpy as np
-
 class ApplicationState(object):
     """
     State Store Singleton Pattern
@@ -49,10 +46,7 @@ class ApplicationState(object):
 
     @active_frame.setter
     def active_frame(self, frame):
-        self.previous_frame = self._active_frame
         self._active_frame = frame
-        if isinstance(self.previous_frame, np.ndarray):
-            self.active_previous_diff = cv2.absdiff(src1=self._previous_frame, src2=self._active_frame)
         self._notify_observers("active_frame", frame)
 
     @property

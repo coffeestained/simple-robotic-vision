@@ -1,6 +1,13 @@
+import cv2
 
 """CV2 Utils"""
+def format_image(frame):
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2GRAY)
+    #frame = cv2.GaussianBlur(frame, (3, 3), 0)
+    return cv2.medianBlur(frame, 3)
+
 def match_template(current_frame, template):
+    template = format_image(template)
     res = cv2.matchTemplate(current_frame, template, cv2.TM_CCOEFF_NORMED)
     threshold = .8
     loc = np.where(res >= threshold)
@@ -13,7 +20,7 @@ def detect_motion(diff):
     kernel = np.ones((11, 11))
     diff_dilated = cv.dilate(diff, kernel, 1)
 
-    # Only take different areas that are different enough (>20 / 255)
+    # Only take different areas that are different enough (>30 / 255)
     threshed_image = cv.threshold(src=diff_dilated, thresh=30, maxval=255, type=cv2.THRESH_BINARY)[1]
 
     # Draw Countours from Motion Detection to Edges Image
