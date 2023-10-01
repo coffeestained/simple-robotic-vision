@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 
 class ApplicationState(object):
     """
@@ -7,12 +9,14 @@ class ApplicationState(object):
         'source': [],
         'program': [],
         'active_frame': [],
-        'previous_frame': []
+        'previous_frame': [],
+        'active_previous_diff': []
     }
     _source = None
     _program = None
     _previous_frame = None
     _active_frame = None
+    _active_previous_diff = None
 
     def __new__(cls):
         """Singleton pattern service
@@ -45,8 +49,10 @@ class ApplicationState(object):
 
     @active_frame.setter
     def active_frame(self, frame):
-        self._previous_frame = self._active_frame
+        self.previous_frame = self._active_frame
         self._active_frame = frame
+        if isinstance(self.previous_frame, np.ndarray):
+            self.active_previous_diff = cv2.absdiff(src1=self._previous_frame, src2=self._active_frame)
         self._notify_observers("active_frame", frame)
 
     @property
@@ -57,6 +63,15 @@ class ApplicationState(object):
     def previous_frame(self, frame):
         self._previous_frame = frame
         self._notify_observers("previous_frame", frame)
+
+    @property
+    def active_previous_diff(self):
+        return self._active_previous_diff
+
+    @active_previous_diff.setter
+    def active_previous_diff(self, diff):
+        self._active_previous_diff = diff
+        self._notify_observers("active_previous_diff", diff)
 
     def _notify_observers(self, prop, current):
         """
