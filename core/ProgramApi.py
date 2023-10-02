@@ -5,11 +5,13 @@ from PyQt5.QtCore import QThreadPool
 
 from core.threading.NetizenThread import NetizenThread
 from core.cv.CV2 import CV2
+from core.ApplicationState import ApplicationState
 
 from utils.mouse import mouse_move, mouse_click
-from utils.cv2 import motion_detection
+from utils.cv2 import motion_detection, match_template
 
 cv2 = CV2()
+application_state = ApplicationState()
 
 class ActionQueue(list):
 
@@ -78,44 +80,56 @@ class ProgramAPI(object):
             time.sleep(.1)
             if len(self._action_queue) > 0:
                 print('Do received action')
-                self._action_queue.pop(0)()
+                self._action_queue.pop(0)["expression"]()
 
-    def mouse_move(self, target, speed=(random.randint(25000, 38000) / 100000)):
-        self._action_queue.append(lambda: mouse_move(target=target, speed_random=speed))
+    def mouse_move(self, target, speed=(random.randint(25000, 38000) / 100000), callback = None):
+        self._action_queue.append({
+            "expression": lambda: mouse_move(target=target, speed_random=speed),
+            "callback": callback
+        })
 
-    def mouse_click(self, target):
-        self._action_queue.append(lambda: mouse_click(target=target))
+    def mouse_click(self, target, callback = None):
+        self._action_queue.append({
+            "expression": lambda: mouse_click(target=target),
+            "callback": callback
+        })
 
-    def track_object(self, object):
+    def object_track(self, template):
         # CV2 Start Tracking An Object
         None
         # returns object id
 
-    def look_for_objects(self, list_of_objects):
-        # Bool if objects exist in camera frame
-        None
-        # Returns tf
+    def object_exists(self, template, callback = None, dev_mode = None):
+        # Bool if object in frame
+        self._action_queue.append({
+            "expression": lambda: match_template(application_state.active_frame, template, dev_mode),
+            "callback": callback
+        })
 
-    def track_text_as_object(self, text):
+
+    def text_track(self, text):
         # CV2 + Tesseract
         None
         # returns object id
 
-    def look_for_text(self, look_for_text):
-        # Bool if text exist in camera frame
+    def text_exists(self, text):
+        # Bool if text exist in frame
         None
         # Returns Bool
 
-    def left_click_tracked_object(self, object_id):
+    def left_click_object_id(self, object_id):
         None
         # Returns Bool
 
-    def right_click_tracked_object(self, object_id):
+    def right_click_object_id(self, object_id):
         None
         # Returns Bool
 
     def toggle_motion_detection(self):
-        cv2.toggle_layer("Motion Detection", motion_detection)
+        self._action_queue.append(
+            lambda: cv2.toggle_layer("Motion Detection", motion_detection)
+        )
+
         # Returns Bool
         return True
 
