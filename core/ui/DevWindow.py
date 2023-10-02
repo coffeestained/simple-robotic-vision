@@ -5,6 +5,9 @@ import time
 import random
 import pyautogui
 import win32api
+import numpy as np
+
+from PIL import ImageGrab, Image
 
 from PyQt5.QtCore import Qt, QThreadPool
 from PyQt5.QtWidgets import (
@@ -112,12 +115,14 @@ class DevWindow(QMainWindow):
         """
         Tests Computer Vision, Tracks an object if found
         """
-        speed = (random.randint(25000, 38000) / 100000)
-        x = random.randint(0, point[0])
-        y = random.randint(0, point[1])
-        print("Moving to %s x and %s y" %(x, y), )
-        program_api.mouse_move((x, y), speed)
-        program_api.mouse_click((x, y))
+        clipboard_image = ImageGrab.grabclipboard()
+        if (isinstance(clipboard_image, Image.Image)):
+            formatted_image = clipboard_image.convert('RGB')
+            formatted_array = np.array(formatted_image)
+            program_api.object_exists(formatted_array, self.is_valid, True)
+
+    def is_valid(self, state = None):
+        print(state)
 
     def move_and_click_tracked_object_id(self):
         """

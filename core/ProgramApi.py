@@ -5,11 +5,13 @@ from PyQt5.QtCore import QThreadPool
 
 from core.threading.NetizenThread import NetizenThread
 from core.cv.CV2 import CV2
+from core.ApplicationState import ApplicationState
 
 from utils.mouse import mouse_move, mouse_click
-from utils.cv2 import motion_detection
+from utils.cv2 import motion_detection, match_template
 
 cv2 = CV2()
+application_state = ApplicationState()
 
 class ActionQueue(list):
 
@@ -78,23 +80,32 @@ class ProgramAPI(object):
             time.sleep(.1)
             if len(self._action_queue) > 0:
                 print('Do received action')
-                self._action_queue.pop(0)()
+                self._action_queue.pop(0)["expression"]()
 
-    def mouse_move(self, target, speed=(random.randint(25000, 38000) / 100000)):
-        self._action_queue.append(lambda: mouse_move(target=target, speed_random=speed))
+    def mouse_move(self, target, speed=(random.randint(25000, 38000) / 100000), callback = None):
+        self._action_queue.append({
+            "expression": lambda: mouse_move(target=target, speed_random=speed),
+            "callback": callback
+        })
 
-    def mouse_click(self, target):
-        self._action_queue.append(lambda: mouse_click(target=target))
+    def mouse_click(self, target, callback = None):
+        self._action_queue.append({
+            "expression": lambda: mouse_click(target=target),
+            "callback": callback
+        })
 
     def object_track(self, template):
         # CV2 Start Tracking An Object
         None
         # returns object id
 
-    def object_exists(self, template):
+    def object_exists(self, template, callback = None, dev_mode = None):
         # Bool if object in frame
-        None
-        # returns Bool
+        self._action_queue.append({
+            "expression": lambda: match_template(application_state.active_frame, template, dev_mode),
+            "callback": callback
+        })
+
 
     def text_track(self, text):
         # CV2 + Tesseract
@@ -115,7 +126,10 @@ class ProgramAPI(object):
         # Returns Bool
 
     def toggle_motion_detection(self):
-        cv2.toggle_layer("Motion Detection", motion_detection)
+        self._action_queue.append(
+            lambda: cv2.toggle_layer("Motion Detection", motion_detection)
+        )
+
         # Returns Bool
         return True
 
