@@ -6,7 +6,7 @@ def format_image(frame):
     #frame = cv2.GaussianBlur(frame, (3, 3), 0)
     return cv2.medianBlur(frame, 3)
 
-def match_template(current_frame, template. dev_mode):
+def match_template(current_frame, template, dev_mode):
     template = format_image(template)
     print(template, current_frame)
     res = cv2.matchTemplate(current_frame, template, cv2.TM_CCOEFF_NORMED)
