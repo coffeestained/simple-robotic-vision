@@ -112,6 +112,8 @@ class VisionWorker(QObject):
 
     def load_capture_source(self):
         self.cap = cv2.VideoCapture(self.source)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
     def load_program(self):
         self.cap = cv2.VideoCapture(self.source)
@@ -128,7 +130,6 @@ class VisionWorker(QObject):
             application_state.active_frame = frame
             inspector_frame = copy.deepcopy(frame)
             for layer in self._layers:
-                print(layer["expression"])
                 inspector_frame += layer["expression"](application_state.active_previous_diff)
             application_state.inspector_frame = inspector_frame
 

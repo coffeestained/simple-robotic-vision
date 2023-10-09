@@ -3,19 +3,31 @@ import cv2, numpy as np
 """CV2 Utils"""
 def format_image(frame):
     frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2GRAY)
-    #frame = cv2.GaussianBlur(frame, (3, 3), 0)
-    return cv2.medianBlur(frame, 3)
+    height, width = frame.shape[:2]
+    print(height, width)
+    frame = cv2.GaussianBlur(frame, (3, 3), 0)
+    #return cv2.medianBlur(frame, 3)
+    return frame
 
 def match_template(current_frame, template, dev_mode):
     template = format_image(template)
-    print(template, current_frame)
+    w, h = template.shape[::-1]
     res = cv2.matchTemplate(current_frame, template, cv2.TM_CCOEFF_NORMED)
-    threshold = .8
+
+    # Specify a threshold
+    threshold = 0.8
+
+    # Store the coordinates of matched area in a numpy array
     loc = np.where(res >= threshold)
+
+    # Draw a rectangle around the matched region.
     for pt in zip(*loc[::-1]):
-        cv2.rectangle(current_frame, pt, (pt[0] + w, pt[1] + h), (0, 0, 255), 2)
+        cv2.rectangle(current_frame, pt, (pt[0] + w, pt[1] + h), (0, 255, 255), 2)
+
     if dev_mode:
-        cv2.imshow('Result', current_frame)
+        cv2.imwrite('res.png', res)
+        cv2.imwrite('Result.png', current_frame)
+        cv2.imwrite('template.png', template)
     return current_frame
 
 def motion_detection(diff):
