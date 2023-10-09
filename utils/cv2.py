@@ -25,9 +25,9 @@ def match_template(current_frame, template, dev_mode):
         cv2.rectangle(current_frame, pt, (pt[0] + w, pt[1] + h), (0, 255, 255), 2)
 
     if dev_mode:
-        cv2.imwrite('res.png', res)
-        cv2.imwrite('Result.png', current_frame)
-        cv2.imwrite('template.png', template)
+        cv2.imwrite('output/res.png', res)
+        cv2.imwrite('output/Result.png', current_frame)
+        cv2.imwrite('output/template.png', template)
     return current_frame
 
 def motion_detection(diff):
