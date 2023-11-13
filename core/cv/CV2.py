@@ -121,7 +121,7 @@ class VisionWorker(QObject):
     def vision_task(self):
         """continuous-running task."""
         while self.active:
-            time.sleep((1/10)) # quarter of a second
+            time.sleep((1/4)) # quarter of a second
             _, frame = self.cap.read()
             frame = format_image(frame)
             if isinstance(application_state.previous_frame, np.ndarray):

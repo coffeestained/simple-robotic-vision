@@ -8,7 +8,7 @@ from core.cv.CV2 import CV2
 from core.ApplicationState import ApplicationState
 
 from utils.mouse import mouse_move, mouse_click
-from utils.cv2 import motion_detection, match_template
+from utils.cv2 import motion_detection, find_template, find_template
 
 cv2 = CV2()
 application_state = ApplicationState()
@@ -102,10 +102,9 @@ class ProgramAPI(object):
     def object_exists(self, template, callback = None, dev_mode = None):
         # Bool if object in frame
         self._action_queue.append({
-            "expression": lambda: match_template(application_state.active_frame, template, dev_mode),
+            "expression": lambda: find_template(application_state.active_frame, template, callback),
             "callback": callback
         })
-
 
     def text_track(self, text):
         # CV2 + Tesseract

@@ -119,7 +119,7 @@ class DevWindow(QMainWindow):
         if (isinstance(clipboard_image, Image.Image)):
             formatted_image = clipboard_image.convert('RGB')
             formatted_array = np.array(formatted_image)
-            program_api.object_exists(formatted_array, self.is_valid, True)
+            program_api.object_exists(formatted_array, self.is_valid, False)
 
     def is_valid(self, state = None):
         print(state)
